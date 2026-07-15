@@ -36,9 +36,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # Debe ir arriba del todo para preflights, redirecciones y respuestas de error
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # Debe ir arriba de CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -118,6 +118,7 @@ AUTH_USER_MODEL = 'quizzes_api.Colaborador'
 
 # CORS configuration
 CORS_ALLOW_ALL_ORIGINS = True
+CSRF_TRUSTED_ORIGINS = ['https://app-quizzes.vercel.app']
 
 # REST Framework y Simple JWT
 REST_FRAMEWORK = {
