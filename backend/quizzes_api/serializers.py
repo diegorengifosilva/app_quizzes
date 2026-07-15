@@ -13,10 +13,22 @@ class ColaboradorSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    usuario = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Colaborador
         fields = ['nombre', 'area', 'usuario', 'password', 'avatar']
+
+    def validate(self, attrs):
+        # Si el usuario no viene en la petición, usar el nombre como nombre de usuario
+        if not attrs.get('usuario'):
+            attrs['usuario'] = attrs.get('nombre')
+        
+        usuario = attrs.get('usuario')
+        if Colaborador.objects.filter(usuario=usuario).exists():
+            raise serializers.ValidationError({"usuario": "El usuario ingresado ya existe."})
+            
+        return attrs
 
     def create(self, validated_data):
         user = Colaborador.objects.create_user(
