@@ -7,12 +7,17 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting(); // Forza al service worker a activarse inmediatamente
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
         return cache.addAll(urlsToCache);
       })
   );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(self.clients.claim()); // Toma control de los clientes de inmediato
 });
 
 self.addEventListener('fetch', event => {
