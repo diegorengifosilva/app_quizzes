@@ -14,7 +14,9 @@ from .views import (
     AdminQuizQuestionsSyncView,
     AdminStatsView,
     ColaboradorUpdateView,
-    ColaboradorChangePasswordView
+    ColaboradorChangePasswordView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView
 )
 
 urlpatterns = [
@@ -24,6 +26,8 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/profile/update/', ColaboradorUpdateView.as_view(), name='profile_update'),
     path('auth/profile/password/', ColaboradorChangePasswordView.as_view(), name='profile_password'),
+    path('auth/password-reset/request/', PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('auth/password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     
     # Colaborador (Juego)
     path('quizzes/active/', ListActiveQuizzesView.as_view(), name='active_quizzes'),

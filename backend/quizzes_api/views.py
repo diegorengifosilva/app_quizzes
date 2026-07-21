@@ -1,14 +1,17 @@
 import uuid
+import random
+from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Avg, Count
 from django.core.mail import send_mail
+from django.conf import settings
 from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Colaborador, Quiz, Pregunta, Opcion, IntentoQuiz, RespuestaUsuario
+from .models import Colaborador, Quiz, Pregunta, Opcion, IntentoQuiz, RespuestaUsuario, PasswordResetCode
 from .serializers import (
     ColaboradorSerializer,
     RegisterSerializer,
@@ -578,3 +581,120 @@ class ColaboradorChangePasswordView(APIView):
         user.save()
 
         return Response({"message": "Contraseña actualizada con éxito."})
+
+
+# --- RECUPERACIÓN DE CONTRASEÑA ---
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email_or_user = request.data.get('email_or_user', '').strip()
+        if not email_or_user:
+            return Response({"error": "Por favor ingresa tu correo electrónico o usuario."}, status=status.HTTP_400_BAD_REQUEST)
+
+        colaborador = Colaborador.objects.filter(correo__iexact=email_or_user).first()
+        if not colaborador:
+            colaborador = Colaborador.objects.filter(usuario__iexact=email_or_user).first()
+
+        if not colaborador:
+            return Response({"error": "No encontramos ninguna cuenta registrada con esa información."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not colaborador.correo:
+            return Response({"error": "Esta cuenta no tiene un correo electrónico registrado para recuperar la contraseña."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generar código de 5 dígitos aleatorio
+        codigo = f"{random.randint(10000, 99999)}"
+
+        # Marcar códigos previos no usados como usados
+        PasswordResetCode.objects.filter(colaborador=colaborador, usado=False).update(usado=True)
+
+        PasswordResetCode.objects.create(
+            colaborador=colaborador,
+            codigo=codigo
+        )
+
+        asunto = "Código de Recuperación de Contraseña - Corporate Quiz"
+        mensaje = f"""Hola {colaborador.nombre},
+
+Recibimos una solicitud para restablecer la contraseña de tu cuenta ({colaborador.usuario}).
+
+Tu código de verificación de 5 dígitos es:
+
+  >>>  {codigo}  <<<
+
+Este código tiene una validez de 15 minutos. Si no solicitaste este cambio, puedes ignorar este correo.
+
+Atentamente,
+El equipo de Corporate Quiz
+"""
+        try:
+            send_mail(
+                asunto,
+                mensaje,
+                settings.DEFAULT_FROM_EMAIL,
+                [colaborador.correo],
+                fail_silently=False,
+            )
+            return Response({
+                "message": f"Código enviado con éxito al correo {colaborador.correo[:3]}***@***.",
+                "email": colaborador.correo,
+                "usuario": colaborador.usuario
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"Error al enviar correo SMTP: {str(e)}")
+            if settings.DEBUG:
+                return Response({
+                    "message": f"Código generado ({codigo}). Nota: El servidor de correo no está configurado en entorno local, pero el código es válido.",
+                    "debug_code": codigo,
+                    "email": colaborador.correo,
+                    "usuario": colaborador.usuario
+                }, status=status.HTTP_200_OK)
+            return Response({
+                "error": "Ocurrió un problema al enviar el correo. Por favor contacta al administrador."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email_or_user = request.data.get('email_or_user', '').strip()
+        codigo = request.data.get('codigo', '').strip()
+        new_password = request.data.get('new_password', '').strip()
+
+        if not email_or_user or not codigo or not new_password:
+            return Response({"error": "Por favor completa todos los campos requeridos."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 4:
+            return Response({"error": "La nueva contraseña debe tener al menos 4 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+
+        colaborador = Colaborador.objects.filter(correo__iexact=email_or_user).first()
+        if not colaborador:
+            colaborador = Colaborador.objects.filter(usuario__iexact=email_or_user).first()
+
+        if not colaborador:
+            return Response({"error": "Usuario o correo no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        reset_entry = PasswordResetCode.objects.filter(
+            colaborador=colaborador,
+            codigo=codigo,
+            usado=False
+        ).order_by('-creado_en').first()
+
+        if not reset_entry:
+            return Response({"error": "El código de 5 dígitos es incorrecto o ya fue utilizado."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar validez de 15 minutos
+        if timezone.now() - reset_entry.creado_en > timedelta(minutes=15):
+            return Response({"error": "El código ha expirado (validez de 15 minutos). Solicita uno nuevo."}, status=status.HTTP_400_BAD_REQUEST)
+
+        colaborador.set_password(new_password)
+        colaborador.save()
+
+        reset_entry.usado = True
+        reset_entry.save()
+
+        return Response({"message": "¡Contraseña restablecida con éxito! Ya puedes iniciar sesión con tu nueva contraseña."}, status=status.HTTP_200_OK)

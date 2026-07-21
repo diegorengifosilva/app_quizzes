@@ -541,7 +541,12 @@ function Login({ onLoginSuccess }) {
             <input type="text" required className="form-input" value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="Ej: Juan Pérez o jperez" />
           </div>
           <div className="form-group">
-            <label className="form-label">Contraseña</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="form-label">Contraseña</label>
+              <Link to="/forgot-password" style={{ fontSize: '0.85rem', color: 'var(--secondary)', textDecoration: 'none' }}>
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
             <input type="password" required className="form-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
           <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
@@ -550,6 +555,174 @@ function Login({ onLoginSuccess }) {
         </form>
         <p style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-secondary)' }}>
           ¿No tienes cuenta? <Link to="/register" style={{ color: 'var(--secondary)', textDecoration: 'none', fontWeight: 'bold' }}>Regístrate aquí</Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ForgotPassword() {
+  const [step, setStep] = useState(1);
+  const [emailOrUser, setEmailOrUser] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleRequestCode = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/auth/password-reset/request/`, {
+        email_or_user: emailOrUser
+      });
+      setMessage(res.data.message);
+      if (res.data.debug_code) {
+        console.log("Código generado (Modo Debug Local):", res.data.debug_code);
+      }
+      setStep(2);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo procesar la solicitud.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+
+    if (newPassword !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    if (codigo.trim().length !== 5) {
+      setError('El código debe tener 5 dígitos.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/auth/password-reset/confirm/`, {
+        email_or_user: emailOrUser,
+        codigo: codigo.trim(),
+        new_password: newPassword
+      });
+      setMessage(res.data.message);
+      setTimeout(() => {
+        navigate('/login');
+      }, 2500);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo restablecer la contraseña.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="main-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
+      <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem', width: '100%', maxWidth: '480px' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '0.5rem' }}>Recuperar Contraseña</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+          {step === 1 
+            ? 'Ingresa tu correo o nombre de usuario para recibir un código de 5 dígitos.'
+            : 'Ingresa el código de 5 dígitos enviado a tu correo y tu nueva contraseña.'}
+        </p>
+
+        {error && (
+          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid var(--danger)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <AlertCircle size={20} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {message && (
+          <div style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', border: '1px solid var(--success)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#86efac', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <CheckCircle size={20} />
+            <span>{message}</span>
+          </div>
+        )}
+
+        {step === 1 ? (
+          <form onSubmit={handleRequestCode}>
+            <div className="form-group">
+              <label className="form-label">Correo Electrónico o Nombre de Usuario</label>
+              <input
+                type="text"
+                required
+                className="form-input"
+                value={emailOrUser}
+                onChange={(e) => setEmailOrUser(e.target.value)}
+                placeholder="ejemplo@correo.com o usuario"
+              />
+            </div>
+            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+              {loading ? 'Enviando código...' : 'Enviar Código de 5 Dígitos'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleConfirmReset}>
+            <div className="form-group">
+              <label className="form-label">Código de 5 Dígitos</label>
+              <input
+                type="text"
+                maxLength={5}
+                required
+                className="form-input"
+                style={{ textAlign: 'center', fontSize: '1.25rem', letterSpacing: '0.3em', fontWeight: 'bold' }}
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                placeholder="12345"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Nueva Contraseña</label>
+              <input
+                type="password"
+                required
+                className="form-input"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Confirmar Nueva Contraseña</label>
+              <input
+                type="password"
+                required
+                className="form-input"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+              {loading ? 'Restableciendo...' : 'Restablecer Contraseña'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => { setStep(1); setError(''); setMessage(''); }}
+              className="btn btn-outline" 
+              style={{ width: '100%', marginTop: '0.5rem' }}
+            >
+              Volver / Solicitar nuevo código
+            </button>
+          </form>
+        )}
+
+        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-secondary)' }}>
+          <Link to="/login" style={{ color: 'var(--secondary)', textDecoration: 'none', fontWeight: 'bold' }}>
+            ← Volver a Iniciar Sesión
+          </Link>
         </p>
       </div>
     </div>
@@ -4237,6 +4410,7 @@ export default function App() {
           {/* Rutas Colaborador Públicas / Semi-públicas */}
           <Route path="/" element={<Home user={user} />} />
           <Route path="/login" element={<Login onLoginSuccess={setUser} />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register onLoginSuccess={setUser} />} />
           <Route path="/quiz/:code" element={<QuizWelcome user={user} />} />
           

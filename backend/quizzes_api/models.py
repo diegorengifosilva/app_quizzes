@@ -147,3 +147,16 @@ class RespuestaUsuario(models.Model):
 
     def __str__(self):
         return f"{self.intento.colaborador.nombre} - Pregunta ID {self.pregunta.id} - Correcta: {self.es_correcta}"
+
+class PasswordResetCode(models.Model):
+    colaborador = models.ForeignKey(Colaborador, on_delete=models.CASCADE, related_name='reset_codes')
+    codigo = models.CharField(max_length=5)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    usado = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name_plural = "Códigos de Restablecimiento"
+        ordering = ['-creado_en']
+
+    def __str__(self):
+        return f"{self.colaborador.usuario} - Código: {self.codigo} (Usado: {self.usado})"
