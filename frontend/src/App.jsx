@@ -14,6 +14,14 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api';
 
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 import avatar1 from './avatar/avatar 1.gif';
 import avatar2 from './avatar/avatar 2.gif';
 import avatar3 from './avatar/avatar 3.gif';
@@ -1985,13 +1993,35 @@ function AdminDashboard() {
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const navigate = useNavigate();
 
+  // Estados para gestión de usuarios (Super Admin)
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = currentUser.is_admin === true;
+  const [activeTab, setActiveTab] = useState('quizzes'); // 'quizzes' | 'users'
+  const [colaboradores, setColaboradores] = useState([]);
+  const [loadingColaboradores, setLoadingColaboradores] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    nombre: '',
+    usuario: '',
+    area: '',
+    correo: '',
+    is_admin: false,
+    is_active: true,
+    new_password: ''
+  });
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [saveLoading, setSaveLoading] = useState(false);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setShowQrModal(false);
+        setEditingUser(null);
       }
     };
-    if (showQrModal) {
+    if (showQrModal || editingUser) {
       window.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     } else {
@@ -2001,7 +2031,7 @@ function AdminDashboard() {
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [showQrModal]);
+  }, [showQrModal, editingUser]);
 
   const fetchAdminData = () => {
     Promise.all([
@@ -2017,16 +2047,79 @@ function AdminDashboard() {
     });
   };
 
+  const fetchColaboradores = async () => {
+    setLoadingColaboradores(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/admin/colaboradores/`);
+      setColaboradores(res.data);
+    } catch (err) {
+      console.error("Error al cargar colaboradores:", err);
+    } finally {
+      setLoadingColaboradores(false);
+    }
+  };
+
   useEffect(() => {
     fetchAdminData();
   }, []);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === 'users') {
+      fetchColaboradores();
+    }
+  }, [isAdmin, activeTab]);
+
+  const handleOpenEditUser = (col) => {
+    setEditingUser(col);
+    setEditFormData({
+      nombre: col.nombre || '',
+      usuario: col.usuario || '',
+      area: col.area || '',
+      correo: col.correo || '',
+      is_admin: col.is_admin || false,
+      is_active: col.is_active !== undefined ? col.is_active : true,
+      new_password: ''
+    });
+    setEditError('');
+    setEditSuccess('');
+  };
+
+  const handleSaveUserEdit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+    setEditSuccess('');
+    setSaveLoading(true);
+    try {
+      const res = await axios.put(`${API_BASE_URL}/admin/colaboradores/${editingUser.id}/`, editFormData);
+      setEditSuccess(res.data.message);
+      setColaboradores(colaboradores.map(c => c.id === editingUser.id ? res.data.user : c));
+      setTimeout(() => {
+        setEditingUser(null);
+      }, 1500);
+    } catch (err) {
+      setEditError(err.response?.data?.error || 'Error al actualizar colaborador.');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userToDelete) => {
+    if (!window.confirm(`¿Estás seguro de eliminar a "${userToDelete.nombre}" (@${userToDelete.usuario})? Se borrarán todos sus cuestionarios e intentos.`)) return;
+    try {
+      await axios.delete(`${API_BASE_URL}/admin/colaboradores/${userToDelete.id}/`);
+      setColaboradores(colaboradores.filter(c => c.id !== userToDelete.id));
+      alert('Colaborador eliminado correctamente.');
+      fetchAdminData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo eliminar al colaborador.');
+    }
+  };
 
   const handleToggleActivo = async (quiz) => {
     try {
       const res = await axios.put(`${API_BASE_URL}/admin/quizzes/${quiz.id}/`, {
         activo: !quiz.activo
       });
-      // Actualizar la lista local
       setQuizzes(quizzes.map(q => q.id === quiz.id ? res.data : q));
     } catch (err) {
       console.error(err);
@@ -2038,7 +2131,7 @@ function AdminDashboard() {
     try {
       await axios.delete(`${API_BASE_URL}/admin/quizzes/${id}/`);
       setQuizzes(quizzes.filter(q => q.id !== id));
-      fetchAdminData(); // Recargar stats
+      fetchAdminData();
     } catch (err) {
       console.error(err);
     }
@@ -2061,10 +2154,10 @@ function AdminDashboard() {
   return (
     <>
       <div className="main-content animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <span style={{ color: 'var(--secondary)', fontWeight: 'bold', fontSize: '0.9rem', textTransform: 'uppercase' }}>Consola de Gestión</span>
-          <h1 style={{ fontSize: '2.2rem' }}>Panel del Capacitador</h1>
+          <h1 style={{ fontSize: '2.2rem' }}>{isAdmin ? 'Panel Administrador General' : 'Panel del Capacitador'}</h1>
         </div>
         <div style={{ display: 'flex', gap: '0.8rem' }}>
           <Link to="/" className="btn btn-outline" style={{ padding: '0.6rem 1.2rem' }}>
@@ -2075,6 +2168,28 @@ function AdminDashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Pestañas de Navegación para Super Admin */}
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setActiveTab('quizzes')}
+            className={`btn ${activeTab === 'quizzes' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.6rem 1.2rem', fontSize: '0.95rem', borderRadius: 'var(--radius-md)' }}
+          >
+            <BookOpen size={18} style={{ marginRight: '0.5rem' }} />
+            Todos los Quizzes ({quizzes.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.6rem 1.2rem', fontSize: '0.95rem', borderRadius: 'var(--radius-md)' }}
+          >
+            <Users size={18} style={{ marginRight: '0.5rem' }} />
+            Gestión de Usuarios / Colaboradores ({colaboradores.length || stats?.total_colaboradores || 0})
+          </button>
+        </div>
+      )}
 
       {/* Buscador de código directo en el panel */}
       <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem', borderLeft: '4px solid var(--secondary)' }}>
@@ -2133,72 +2248,328 @@ function AdminDashboard() {
         </div>
       </div>
 
-      {/* Listado de Quizzes */}
-      <div className="glass-panel" style={{ padding: '2rem' }}>
-        <h3 style={{ marginBottom: '1.5rem' }}>Cuestionarios Creados</h3>
-        {quizzes.length === 0 ? (
-          <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>Aún no has creado ningún cuestionario. Haz clic en "Crear Cuestionario" arriba.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="custom-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'center' }}>Cuestionario</th>
-                  <th style={{ textAlign: 'center' }}>Código Acceso</th>
-                  <th style={{ textAlign: 'center' }}>Preguntas</th>
-                  <th style={{ textAlign: 'center' }}>Límite de Tiempo</th>
-                  <th style={{ textAlign: 'center' }}>Estado</th>
-                  <th style={{ textAlign: 'center' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quizzes.map(quiz => (
-                  <tr key={quiz.id}>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ fontWeight: '600' }}>{quiz.titulo}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{quiz.descripcion || 'Sin descripción'}</div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}><span className="tag-badge tag-badge-primary">{quiz.codigo_acceso}</span></td>
-                    <td style={{ textAlign: 'center', fontWeight: '600' }}>{quiz.total_preguntas}</td>
-                    <td style={{ textAlign: 'center' }}>{quiz.tiempo_limite > 0 ? `${quiz.tiempo_limite} min` : 'Sin Límite'}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button 
-                        onClick={() => handleToggleActivo(quiz)}
-                        className={`tag-badge ${quiz.activo ? 'tag-badge-success' : 'tag-badge-secondary'}`}
-                        style={{ border: 'none', cursor: 'pointer', outline: 'none' }}
-                      >
-                        {quiz.activo ? 'Activo' : 'Inactivo'}
-                      </button>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
-                        <button 
-                          onClick={() => {
-                            setSelectedQuiz(quiz);
-                            setShowQrModal(true);
-                          }}
-                          className="btn btn-outline" 
-                          style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem' }} 
-                          title="Compartir QR"
-                        >
-                          <QrCode size={14} /> Compartir
-                        </button>
-                        <Link to={`/admin/quiz/${quiz.id}/manage`} className="btn btn-primary" style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, var(--secondary), var(--secondary-hover))' }} title="Administrar">
-                          <Settings size={14} /> Administrar
-                        </Link>
-                        <button onClick={() => handleDeleteQuiz(quiz.id)} className="btn btn-danger" style={{ padding: '0.45rem 0.6rem', fontSize: '0.85rem' }} title="Eliminar Cuestionario">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Contenido según Pestaña Activa */}
+      {isAdmin && activeTab === 'users' ? (
+        /* Pestaña: Gestión de Usuarios */
+        <div className="glass-panel" style={{ padding: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <h3 style={{ margin: 0 }}>Usuarios Registrados en la Plataforma</h3>
+            <input
+              type="text"
+              className="form-input"
+              style={{ width: '300px', margin: 0 }}
+              placeholder="🔍 Buscar por nombre, usuario, correo..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+            />
           </div>
-        )}
-      </div>
+
+          {loadingColaboradores ? (
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Cargando lista de colaboradores...</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="custom-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Colaborador</th>
+                    <th style={{ textAlign: 'center' }}>Área</th>
+                    <th style={{ textAlign: 'center' }}>Correo</th>
+                    <th style={{ textAlign: 'center' }}>Rol</th>
+                    <th style={{ textAlign: 'center' }}>Estado</th>
+                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {colaboradores
+                    .filter(c => 
+                      c.nombre.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      c.usuario.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      (c.correo && c.correo.toLowerCase().includes(userSearch.toLowerCase())) ||
+                      c.area.toLowerCase().includes(userSearch.toLowerCase())
+                    )
+                    .map(col => (
+                      <tr key={col.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                            <img 
+                              src={getRandomAvatarSrc(col.usuario, col.nombre)} 
+                              alt="Avatar" 
+                              style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} 
+                            />
+                            <div>
+                              <div style={{ fontWeight: '600' }}>{col.nombre}</div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>@{col.usuario}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="tag-badge tag-badge-secondary">{col.area}</span>
+                        </td>
+                        <td style={{ textAlign: 'center', fontSize: '0.85rem' }}>
+                          {col.correo || <span style={{ color: 'var(--text-muted)' }}>Sin correo</span>}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {col.is_admin ? (
+                            <span className="tag-badge tag-badge-primary" style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+                              Super Admin
+                            </span>
+                          ) : (
+                            <span className="tag-badge tag-badge-secondary">Colaborador</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`tag-badge ${col.is_active ? 'tag-badge-success' : 'tag-badge-danger'}`}>
+                            {col.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleOpenEditUser(col)}
+                              className="btn btn-primary"
+                              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                              title="Editar usuario"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(col)}
+                              className="btn btn-danger"
+                              style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                              title="Eliminar usuario"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Pestaña: Listado de Quizzes */
+        <div className="glass-panel" style={{ padding: '2rem' }}>
+          <h3 style={{ marginBottom: '1.5rem' }}>
+            {isAdmin ? 'Todos los Cuestionarios del Sistema' : 'Mis Cuestionarios Creados'}
+          </h3>
+          {quizzes.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>Aún no hay cuestionarios registrados.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="custom-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'center' }}>Cuestionario</th>
+                    {isAdmin && <th style={{ textAlign: 'center' }}>Creador</th>}
+                    <th style={{ textAlign: 'center' }}>Código Acceso</th>
+                    <th style={{ textAlign: 'center' }}>Preguntas</th>
+                    <th style={{ textAlign: 'center' }}>Límite de Tiempo</th>
+                    <th style={{ textAlign: 'center' }}>Estado</th>
+                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quizzes.map(quiz => (
+                    <tr key={quiz.id}>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: '600' }}>{quiz.titulo}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{quiz.descripcion || 'Sin descripción'}</div>
+                      </td>
+                      {isAdmin && (
+                        <td style={{ textAlign: 'center', fontSize: '0.85rem' }}>
+                          <span className="tag-badge tag-badge-secondary">
+                            {quiz.creado_por_nombre || 'Admin'}
+                          </span>
+                        </td>
+                      )}
+                      <td style={{ textAlign: 'center' }}><span className="tag-badge tag-badge-primary">{quiz.codigo_acceso}</span></td>
+                      <td style={{ textAlign: 'center', fontWeight: '600' }}>{quiz.total_preguntas}</td>
+                      <td style={{ textAlign: 'center' }}>{quiz.tiempo_limite > 0 ? `${quiz.tiempo_limite} min` : 'Sin Límite'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button 
+                          onClick={() => handleToggleActivo(quiz)}
+                          className={`tag-badge ${quiz.activo ? 'tag-badge-success' : 'tag-badge-secondary'}`}
+                          style={{ border: 'none', cursor: 'pointer', outline: 'none' }}
+                        >
+                          {quiz.activo ? 'Activo' : 'Inactivo'}
+                        </button>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
+                          <button 
+                            onClick={() => {
+                              setSelectedQuiz(quiz);
+                              setShowQrModal(true);
+                            }}
+                            className="btn btn-outline" 
+                            style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem' }} 
+                            title="Compartir QR"
+                          >
+                            <QrCode size={14} /> Compartir
+                          </button>
+                          <Link to={`/admin/quiz/${quiz.id}/manage`} className="btn btn-primary" style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, var(--secondary), var(--secondary-hover))' }} title="Administrar">
+                            <Settings size={14} /> Administrar
+                          </Link>
+                          <button onClick={() => handleDeleteQuiz(quiz.id)} className="btn btn-danger" style={{ padding: '0.45rem 0.6rem', fontSize: '0.85rem' }} title="Eliminar Cuestionario">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
+
+    {/* Modal de Edición de Usuario (Super Admin) */}
+    {editingUser && createPortal(
+      <div 
+        onClick={() => setEditingUser(null)}
+        className="modal-overlay"
+      >
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="modal-content glass-panel animate-fade-in"
+          style={{ maxWidth: '540px', padding: '2rem' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ margin: 0 }}>Editar Datos de Colaborador</h3>
+            <button 
+              type="button" 
+              onClick={() => setEditingUser(null)} 
+              className="btn btn-outline"
+              style={{ padding: '0.3rem 0.5rem' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {editError && (
+            <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid var(--danger)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#fca5a5', marginBottom: '1rem' }}>
+              {editError}
+            </div>
+          )}
+
+          {editSuccess && (
+            <div style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', border: '1px solid var(--success)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#86efac', marginBottom: '1rem' }}>
+              {editSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveUserEdit}>
+            <div className="form-group">
+              <label className="form-label">Nombre Completo</label>
+              <input
+                type="text"
+                required
+                className="form-input"
+                value={editFormData.nombre}
+                onChange={(e) => setEditFormData({ ...editFormData, nombre: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Nombre de Usuario (Login)</label>
+                <input
+                  type="text"
+                  required
+                  className="form-input"
+                  value={editFormData.usuario}
+                  onChange={(e) => setEditFormData({ ...editFormData, usuario: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Área</label>
+                <select
+                  className="form-select"
+                  value={editFormData.area}
+                  onChange={(e) => setEditFormData({ ...editFormData, area: e.target.value })}
+                >
+                  {AREAS_GROUPED.map((group, idx) => (
+                    <optgroup key={idx} label={group.label}>
+                      {group.options.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Correo Electrónico</label>
+              <input
+                type="email"
+                className="form-input"
+                placeholder="ejemplo@correo.com"
+                value={editFormData.correo}
+                onChange={(e) => setEditFormData({ ...editFormData, correo: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <label className="form-label" style={{ marginBottom: '0.5rem' }}>Cambiar Contraseña (Opcional)</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="Dejar en blanco para mantener la actual"
+                value={editFormData.new_password}
+                onChange={(e) => setEditFormData({ ...editFormData, new_password: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '1.5rem', margin: '1rem 0 1.5rem 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                <input
+                  type="checkbox"
+                  checked={editFormData.is_admin}
+                  onChange={(e) => setEditFormData({ ...editFormData, is_admin: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--secondary)' }}
+                />
+                Es Administrador (Super Admin)
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                <input
+                  type="checkbox"
+                  checked={editFormData.is_active}
+                  onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--secondary)' }}
+                />
+                Cuenta Activa
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.8rem', marginTop: '1.5rem' }}>
+              <button 
+                type="button" 
+                onClick={() => setEditingUser(null)} 
+                className="btn btn-outline"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                disabled={saveLoading} 
+                className="btn btn-primary"
+              >
+                {saveLoading ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>,
+      document.body
+    )}
 
     {/* Modal de Proyección QR */}
     {showQrModal && selectedQuiz && createPortal(

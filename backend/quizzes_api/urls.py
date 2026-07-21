@@ -16,7 +16,9 @@ from .views import (
     ColaboradorUpdateView,
     ColaboradorChangePasswordView,
     PasswordResetRequestView,
-    PasswordResetConfirmView
+    PasswordResetConfirmView,
+    AdminColaboradoresView,
+    AdminColaboradorDetailView
 )
 
 urlpatterns = [
@@ -42,4 +44,6 @@ urlpatterns = [
     path('admin/quizzes/<int:pk>/', AdminQuizDetailView.as_view(), name='admin_quiz_detail'),
     path('admin/quizzes/<int:quiz_id>/questions/sync/', AdminQuizQuestionsSyncView.as_view(), name='admin_questions_sync'),
     path('admin/stats/', AdminStatsView.as_view(), name='admin_stats'),
+    path('admin/colaboradores/', AdminColaboradoresView.as_view(), name='admin_colaboradores'),
+    path('admin/colaboradores/<int:pk>/', AdminColaboradorDetailView.as_view(), name='admin_colaborador_detail'),
 ]

@@ -395,13 +395,15 @@ class AdminQuizListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        quizzes = Quiz.objects.filter(creado_por=request.user)
+        if request.user.is_admin:
+            quizzes = Quiz.objects.all().order_by('-fecha_creacion')
+        else:
+            quizzes = Quiz.objects.filter(creado_por=request.user).order_by('-fecha_creacion')
         serializer = QuizSerializer(quizzes, many=True)
         return Response(serializer.data)
 
     def post(self, request):
         data = request.data.copy()
-        # Generar un código único si no se proporciona
         if not data.get('codigo_acceso'):
             data['codigo_acceso'] = str(uuid.uuid4())[:8].upper()
             
@@ -416,8 +418,10 @@ class AdminQuizDetailView(APIView):
 
     def get(self, request, pk):
         try:
-            quiz = Quiz.objects.get(pk=pk, creado_por=request.user)
-            # Para el admin, queremos detalles completos incluyendo preguntas y opciones
+            if request.user.is_admin:
+                quiz = Quiz.objects.get(pk=pk)
+            else:
+                quiz = Quiz.objects.get(pk=pk, creado_por=request.user)
             preguntas = quiz.preguntas.all()
             preguntas_serializer = PreguntaSerializer(preguntas, many=True)
             quiz_serializer = QuizSerializer(quiz)
@@ -431,7 +435,10 @@ class AdminQuizDetailView(APIView):
 
     def put(self, request, pk):
         try:
-            quiz = Quiz.objects.get(pk=pk, creado_por=request.user)
+            if request.user.is_admin:
+                quiz = Quiz.objects.get(pk=pk)
+            else:
+                quiz = Quiz.objects.get(pk=pk, creado_por=request.user)
             serializer = QuizSerializer(quiz, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -442,7 +449,10 @@ class AdminQuizDetailView(APIView):
 
     def delete(self, request, pk):
         try:
-            quiz = Quiz.objects.get(pk=pk, creado_por=request.user)
+            if request.user.is_admin:
+                quiz = Quiz.objects.get(pk=pk)
+            else:
+                quiz = Quiz.objects.get(pk=pk, creado_por=request.user)
             quiz.delete()
             return Response({"message": "Quiz eliminado correctamente."}, status=status.HTTP_204_NO_CONTENT)
         except Quiz.DoesNotExist:
@@ -698,3 +708,63 @@ class PasswordResetConfirmView(APIView):
         reset_entry.save()
 
         return Response({"message": "¡Contraseña restablecida con éxito! Ya puedes iniciar sesión con tu nueva contraseña."}, status=status.HTTP_200_OK)
+
+
+# --- VISTAS DE SUPERUSUARIO PARA GESTIÓN DE COLABORADORES ---
+
+class IsAdminPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_admin)
+
+class AdminColaboradoresView(APIView):
+    permission_classes = [IsAdminPermission]
+
+    def get(self, request):
+        colaboradores = Colaborador.objects.all().order_by('-fecha_registro')
+        serializer = ColaboradorSerializer(colaboradores, many=True)
+        return Response(serializer.data)
+
+class AdminColaboradorDetailView(APIView):
+    permission_classes = [IsAdminPermission]
+
+    def put(self, request, pk):
+        try:
+            colaborador = Colaborador.objects.get(pk=pk)
+        except Colaborador.DoesNotExist:
+            return Response({"error": "Colaborador no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data
+        if 'nombre' in data: colaborador.nombre = data['nombre']
+        if 'usuario' in data and data['usuario']:
+            usr_val = data['usuario'].strip()
+            if Colaborador.objects.filter(usuario=usr_val).exclude(pk=pk).exists():
+                return Response({"error": "El nombre de usuario ya está ocupado."}, status=status.HTTP_400_BAD_REQUEST)
+            colaborador.usuario = usr_val
+        if 'area' in data: colaborador.area = data['area']
+        if 'correo' in data:
+            correo_val = data['correo'].strip() if data['correo'] else None
+            if correo_val and Colaborador.objects.filter(correo=correo_val).exclude(pk=pk).exists():
+                return Response({"error": "El correo ya está registrado por otro colaborador."}, status=status.HTTP_400_BAD_REQUEST)
+            colaborador.correo = correo_val
+        if 'is_admin' in data: colaborador.is_admin = bool(data['is_admin'])
+        if 'is_active' in data: colaborador.is_active = bool(data['is_active'])
+        if 'new_password' in data and data['new_password']:
+            if len(data['new_password']) < 4:
+                return Response({"error": "La contraseña debe tener al menos 4 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+            colaborador.set_password(data['new_password'])
+
+        colaborador.save()
+        return Response({
+            "message": "Datos del colaborador actualizados correctamente.",
+            "user": ColaboradorSerializer(colaborador).data
+        })
+
+    def delete(self, request, pk):
+        try:
+            colaborador = Colaborador.objects.get(pk=pk)
+            if colaborador.id == request.user.id:
+                return Response({"error": "No puedes eliminar tu propia cuenta de administrador estando en sesión."}, status=status.HTTP_400_BAD_REQUEST)
+            colaborador.delete()
+            return Response({"message": "Colaborador eliminado correctamente."})
+        except Colaborador.DoesNotExist:
+            return Response({"error": "Colaborador no encontrado."}, status=status.HTTP_404_NOT_FOUND)
