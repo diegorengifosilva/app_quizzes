@@ -1,23 +1,22 @@
-const CACHE_NAME = 'corporatequiz-cache-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/favicon.svg',
-  '/manifest.json'
-];
+const CACHE_NAME = 'corporatequiz-cache-v2';
 
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Forza al service worker a activarse inmediatamente
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim()); // Toma control de los clientes de inmediato
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cache => {
+          if (cache !== CACHE_NAME) {
+            console.log('Eliminando caché antigua de SW:', cache);
+            return caches.delete(cache);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', event => {
@@ -26,13 +25,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
+  // Para navegación de páginas (HTML / index.html), SIEMPRE ir a la RED primero (Network First)
+  if (event.request.mode === 'navigate' || event.request.url.endsWith('/index.html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match('/index.html');
       })
+    );
+    return;
+  }
+
+  // Para recursos estáticos de public (icons, favicon, etc.), Cache First con fallback a red
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
   );
 });
