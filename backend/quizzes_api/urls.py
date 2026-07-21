@@ -12,7 +12,9 @@ from .views import (
     AdminQuizListCreateView,
     AdminQuizDetailView,
     AdminQuizQuestionsSyncView,
-    AdminStatsView
+    AdminStatsView,
+    ColaboradorUpdateView,
+    ColaboradorChangePasswordView
 )
 
 urlpatterns = [
@@ -20,6 +22,8 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/profile/update/', ColaboradorUpdateView.as_view(), name='profile_update'),
+    path('auth/profile/password/', ColaboradorChangePasswordView.as_view(), name='profile_password'),
     
     # Colaborador (Juego)
     path('quizzes/active/', ListActiveQuizzesView.as_view(), name='active_quizzes'),

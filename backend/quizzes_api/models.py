@@ -2,13 +2,14 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 
 class ColaboradorManager(BaseUserManager):
-    def create_user(self, usuario, nombre, area, password=None):
+    def create_user(self, usuario, nombre, area, password=None, correo=None):
         if not usuario:
             raise ValueError('El usuario es obligatorio')
         user = self.model(
             usuario=usuario,
             nombre=nombre,
-            area=area
+            area=area,
+            correo=correo
         )
         user.set_password(password)
         user.save(using=self._db)
@@ -48,6 +49,7 @@ class Colaborador(AbstractBaseUser):
     ]
     area = models.CharField(max_length=50, choices=AREA_CHOICES)
     usuario = models.CharField(max_length=50, unique=True)
+    correo = models.EmailField(max_length=150, unique=True, null=True, blank=True)
     fecha_registro = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     is_admin = models.BooleanField(default=False)
@@ -89,7 +91,8 @@ class Quiz(models.Model):
 class Pregunta(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='preguntas')
     texto = models.TextField()
-    puntos = models.IntegerField(default=10)
+    imagen = models.TextField(blank=True, null=True, help_text="URL o Data URL (base64) de la imagen de la pregunta")
+    puntos = models.IntegerField(default=1)
     orden = models.IntegerField(default=0)
 
     class Meta:
@@ -116,6 +119,18 @@ class IntentoQuiz(models.Model):
     fecha_inicio = models.DateTimeField(auto_now_add=True)
     fecha_finalizacion = models.DateTimeField(null=True, blank=True)
     completado = models.BooleanField(default=False)
+    
+    # Campos de retroalimentación de la capacitación
+    feedback_capacitacion_score = models.IntegerField(null=True, blank=True, help_text="Calificación de la exposición (1-5)")
+    feedback_preguntas_score = models.IntegerField(null=True, blank=True, help_text="Calificación de las preguntas (1-5)")
+    feedback_tema_score = models.IntegerField(null=True, blank=True, help_text="Tema (1-5)")
+    feedback_capacitador_score = models.IntegerField(null=True, blank=True, help_text="Capacitador (1-5)")
+    feedback_comprension_score = models.IntegerField(null=True, blank=True, help_text="Comprensión (1-5)")
+    feedback_materiales_score = models.IntegerField(null=True, blank=True, help_text="Materiales (1-5)")
+    feedback_conexion_score = models.IntegerField(null=True, blank=True, help_text="Medio de Conexión (1-5)")
+    feedback_expectativas = models.CharField(max_length=10, null=True, blank=True, help_text="Cumplió expectativas (Si/No)")
+    feedback_aplicacion = models.CharField(max_length=100, null=True, blank=True, help_text="Aplicación del conocimiento")
+    feedback_comentarios = models.TextField(null=True, blank=True)
 
     class Meta:
         verbose_name_plural = "Intentos de Quiz"

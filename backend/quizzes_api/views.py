@@ -1,6 +1,7 @@
 import uuid
 from django.utils import timezone
 from django.db.models import Avg, Count
+from django.core.mail import send_mail
 from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -184,7 +185,59 @@ class SubmitQuizView(APIView):
         intento.puntaje = total_puntos
         intento.fecha_finalizacion = timezone.now()
         intento.completado = True
+        
+        # Guardar feedback de capacitación si está presente en la solicitud
+        if 'feedback_capacitacion_score' in request.data:
+            intento.feedback_capacitacion_score = request.data.get('feedback_capacitacion_score')
+        if 'feedback_preguntas_score' in request.data:
+            intento.feedback_preguntas_score = request.data.get('feedback_preguntas_score')
+        if 'feedback_tema_score' in request.data:
+            intento.feedback_tema_score = request.data.get('feedback_tema_score')
+        if 'feedback_capacitador_score' in request.data:
+            intento.feedback_capacitador_score = request.data.get('feedback_capacitador_score')
+        if 'feedback_comprension_score' in request.data:
+            intento.feedback_comprension_score = request.data.get('feedback_comprension_score')
+        if 'feedback_materiales_score' in request.data:
+            intento.feedback_materiales_score = request.data.get('feedback_materiales_score')
+        if 'feedback_conexion_score' in request.data:
+            intento.feedback_conexion_score = request.data.get('feedback_conexion_score')
+        if 'feedback_expectativas' in request.data:
+            intento.feedback_expectativas = request.data.get('feedback_expectativas')
+        if 'feedback_aplicacion' in request.data:
+            intento.feedback_aplicacion = request.data.get('feedback_aplicacion')
+        if 'feedback_comentarios' in request.data:
+            intento.feedback_comentarios = request.data.get('feedback_comentarios')
+
         intento.save()
+
+        # Enviar correo de sugerencias/comentarios si está provisto
+        if intento.feedback_comentarios:
+            try:
+                subject = f"Sugerencias de Capacitación - {intento.colaborador.nombre} ({intento.colaborador.area})"
+                message = (
+                    f"El colaborador {intento.colaborador.nombre} ({intento.colaborador.usuario}) "
+                    f"de la sección '{intento.colaborador.get_area_display()}' ha enviado las siguientes sugerencias "
+                    f"para la evaluación '{intento.quiz.titulo}':\n\n"
+                    f"Comentarios:\n{intento.feedback_comentarios}\n\n"
+                    f"Calificaciones:\n"
+                    f"- Tema: {intento.feedback_tema_score or 0}/5\n"
+                    f"- Capacitador: {intento.feedback_capacitador_score or 0}/5\n"
+                    f"- Comprensión: {intento.feedback_comprension_score or 0}/5\n"
+                    f"- Materiales: {intento.feedback_materiales_score or 0}/5\n"
+                    f"- Medio de Conexión: {intento.feedback_conexion_score or 0}/5\n"
+                    f"- Cumplió Expectativas: {intento.feedback_expectativas or 'N/A'}\n"
+                    f"- Aplicación del Conocimiento: {intento.feedback_aplicacion or 'N/A'}\n"
+                )
+                from_email = intento.colaborador.correo or "no-reply@vc-corporation.com"
+                send_mail(
+                    subject,
+                    message,
+                    from_email,
+                    ['diego.rengifo@vc-corporation.com'], # test recipient
+                    fail_silently=True
+                )
+            except Exception as mail_err:
+                print("Error enviando email:", mail_err)
 
         # Obtener ranking actual de este quiz (incluyendo en progreso)
         rankings = IntentoQuiz.objects.filter(quiz=intento.quiz).order_by('-puntaje', 'fecha_inicio')
@@ -288,6 +341,40 @@ class QuizRankingView(APIView):
                 "participantes": area['total_participantes']
             })
 
+        # 3. Buscar si el usuario actual ya completó este quiz y si es así, incluir sus respuestas detalladas
+        mi_intento_detalles = None
+        intento_usuario = IntentoQuiz.objects.filter(quiz=quiz, colaborador=request.user, completado=True).first()
+        if intento_usuario:
+            respuestas_detalles = []
+            todas_resp = RespuestaUsuario.objects.filter(intento=intento_usuario)
+            for r in todas_resp:
+                correct_opc = Opcion.objects.filter(pregunta=r.pregunta, es_correcta=True).first()
+                correct_opc_id = correct_opc.id if correct_opc else None
+                respuestas_detalles.append({
+                    "pregunta_id": r.pregunta.id,
+                    "opcion_seleccionada_id": r.opcion_seleccionada.id if r.opcion_seleccionada else None,
+                    "es_correcta": r.es_correcta,
+                    "opcion_correcta_id": correct_opc_id
+                })
+            
+            preguntas = Pregunta.objects.filter(quiz=quiz)
+            preguntas_serializer = PreguntaSerializer(preguntas, many=True)
+            
+            # Puesto del usuario en el ranking
+            rankings = IntentoQuiz.objects.filter(quiz=quiz).order_by('-puntaje', 'fecha_inicio')
+            try:
+                mi_puesto = list(rankings.values_list('id', flat=True)).index(intento_usuario.id) + 1
+            except ValueError:
+                mi_puesto = None
+
+            mi_intento_detalles = {
+                "intento": IntentoQuizSerializer(intento_usuario).data,
+                "respuestas_detalles": respuestas_detalles,
+                "preguntas": preguntas_serializer.data,
+                "puesto": mi_puesto,
+                "total_participantes": rankings.count()
+            }
+
         return Response({
             "quiz": {
                 "id": quiz.id,
@@ -295,7 +382,8 @@ class QuizRankingView(APIView):
                 "codigo_acceso": quiz.codigo_acceso
             },
             "ranking_individual": ranking_ind_serializer.data,
-            "ranking_areas": ranking_areas
+            "ranking_areas": ranking_areas,
+            "mi_intento": mi_intento_detalles
         })
 
 # --- VISTAS PARA ADMINISTRACIÓN ---
@@ -374,6 +462,7 @@ class AdminQuizQuestionsSyncView(APIView):
         # Crear nuevas preguntas y opciones
         for idx, p_data in enumerate(preguntas_data):
             texto_preg = p_data.get('texto')
+            imagen_preg = p_data.get('imagen', '')
             puntos = p_data.get('puntos', 10)
             opciones_list = p_data.get('opciones', [])
 
@@ -383,6 +472,7 @@ class AdminQuizQuestionsSyncView(APIView):
             pregunta = Pregunta.objects.create(
                 quiz=quiz,
                 texto=texto_preg,
+                imagen=imagen_preg,
                 puntos=puntos,
                 orden=idx
             )
@@ -447,3 +537,44 @@ class AdminStatsView(APIView):
             "quizzes_mas_activos": quizzes_activos_data,
             "participacion_por_area": areas_data
         })
+
+
+class ColaboradorUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request):
+        user = request.user
+        nombre = request.data.get('nombre')
+        correo = request.data.get('correo')
+        area = request.data.get('area')
+
+        if not nombre or not correo or not area:
+            return Response({"error": "Todos los campos (Nombre, Correo, Área) son obligatorios."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Colaborador.objects.filter(correo=correo).exclude(id=user.id).exists():
+            return Response({"error": "El correo electrónico ya está registrado por otro colaborador."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.nombre = nombre
+        user.correo = correo
+        user.area = area
+        user.save()
+
+        return Response({
+            "message": "Datos de perfil actualizados con éxito.",
+            "user": ColaboradorSerializer(user).data
+        })
+
+class ColaboradorChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request):
+        user = request.user
+        new_password = request.data.get('password')
+
+        if not new_password or len(new_password) < 6:
+            return Response({"error": "La contraseña debe tener al menos 6 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({"message": "Contraseña actualizada con éxito."})

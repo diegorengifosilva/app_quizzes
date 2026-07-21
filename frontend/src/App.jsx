@@ -9,7 +9,7 @@ import {
   Trophy, Play, LogOut, Plus, QrCode, Users, BookOpen, 
   ArrowRight, Clock, ArrowLeft, Check, X, Award, 
   Sparkles, CheckCircle, AlertCircle, Settings, ShieldAlert,
-  Trash2, Download
+  Trash2, Download, User, Lock, Image, Upload
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api';
@@ -112,9 +112,89 @@ axios.interceptors.request.use(
 
 // --- COMPONENTES AUXILIARES ---
 
-function Navbar({ user, onLogout }) {
+function Navbar({ user, onLogout, onUserUpdate }) {
   const location = useLocation();
   const isCapacitadorPath = location.pathname.startsWith('/admin');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // Edit fields
+  const [editNombre, setEditNombre] = useState('');
+  const [editCorreo, setEditCorreo] = useState('');
+  const [editArea, setEditArea] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Password fields
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Load user data into edit fields when modal opens
+  useEffect(() => {
+    if (user) {
+      setEditNombre(user.nombre || '');
+      setEditCorreo(user.correo || '');
+      setEditArea(user.area || '');
+    }
+  }, [user, showEditModal]);
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+    setEditLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.put(`${API_BASE_URL}/auth/profile/update/`, {
+        nombre: editNombre,
+        correo: editCorreo,
+        area: editArea
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      onUserUpdate(res.data.user);
+      setShowEditModal(false);
+      alert('Perfil actualizado con éxito');
+    } catch (err) {
+      setEditError(err.response?.data?.error || 'Error al actualizar el perfil.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Las contraseñas no coinciden.');
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${API_BASE_URL}/auth/profile/password/`, {
+        password: newPassword
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPasswordSuccess('Contraseña cambiada con éxito.');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordSuccess('');
+      }, 1500);
+    } catch (err) {
+      setPasswordError(err.response?.data?.error || 'Error al cambiar la contraseña.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   return (
     <header className="app-header">
@@ -125,11 +205,7 @@ function Navbar({ user, onLogout }) {
         </Link>
         <div className="user-nav">
           {user ? (
-            <>
-              <div className="user-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span className="user-name" style={{ lineHeight: '1.2', fontWeight: '600' }}>{user.nombre}</span>
-                <span className="user-area" style={{ fontSize: '0.75rem', opacity: 0.8 }}>{user.area_display || user.area}</span>
-              </div>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
               {isCapacitadorPath ? (
                 <Link to="/" className="btn btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
                   <Play size={16} className="text-secondary" /> <span className="nav-btn-text">Responder Quizzes</span>
@@ -139,10 +215,140 @@ function Navbar({ user, onLogout }) {
                   <Settings size={16} /> <span className="nav-btn-text">Modo Capacitador</span>
                 </Link>
               )}
-              <button onClick={onLogout} className="btn btn-danger" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
-                <LogOut size={16} /> <span className="nav-btn-text">Salir</span>
-              </button>
-            </>
+
+              {/* Profile Pill with Dropdown Menu */}
+              <div style={{ position: 'relative' }}>
+                <div 
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.6rem', 
+                    background: 'rgba(255,255,255,0.04)', 
+                    border: '1px solid rgba(255,255,255,0.08)', 
+                    borderRadius: 'var(--radius-full)', 
+                    padding: '0.4rem 1.2rem', 
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: dropdownOpen ? '0 0 12px rgba(6, 182, 212, 0.2)' : 'none',
+                    borderColor: dropdownOpen ? 'var(--secondary)' : 'rgba(255,255,255,0.08)'
+                  }}
+                >
+                  <div style={{ 
+                    width: '32px', 
+                    height: '32px', 
+                    borderRadius: '50%', 
+                    background: 'linear-gradient(135deg, var(--secondary), var(--primary))', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem',
+                    color: 'white'
+                  }}>
+                    {user.nombre ? user.nombre.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', lineHeight: '1.2', color: 'var(--text-primary)' }}>{user.nombre}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.7, color: 'var(--text-secondary)' }}>{user.area_display || user.area}</span>
+                  </div>
+                  <span style={{ fontSize: '0.65rem', opacity: 0.6, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>▼</span>
+                </div>
+
+                {dropdownOpen && (
+                  <>
+                    <div 
+                      onClick={() => setDropdownOpen(false)} 
+                      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }}
+                    />
+                    <div 
+                      className="glass-panel" 
+                      style={{ 
+                        position: 'absolute', 
+                        right: 0, 
+                        top: '120%', 
+                        width: '220px', 
+                        padding: '0.6rem 0', 
+                        zIndex: 999, 
+                        animation: 'fade-in 0.2s ease',
+                        boxShadow: 'var(--shadow-lg)',
+                        background: '#17183b',
+                        borderColor: 'rgba(255,255,255,0.12)'
+                      }}
+                    >
+                      <button 
+                        onClick={() => { setShowEditModal(true); setDropdownOpen(false); }}
+                        style={{ 
+                          width: '100%', 
+                          background: 'none', 
+                          border: 'none', 
+                          padding: '0.6rem 1.2rem', 
+                          textAlign: 'left', 
+                          color: 'var(--text-primary)', 
+                          fontSize: '0.85rem', 
+                          cursor: 'pointer', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.6rem',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        <User size={15} style={{ color: 'var(--secondary)' }} />
+                        Ver / Editar Datos
+                      </button>
+                      <button 
+                        onClick={() => { setShowPasswordModal(true); setDropdownOpen(false); }}
+                        style={{ 
+                          width: '100%', 
+                          background: 'none', 
+                          border: 'none', 
+                          padding: '0.6rem 1.2rem', 
+                          textAlign: 'left', 
+                          color: 'var(--text-primary)', 
+                          fontSize: '0.85rem', 
+                          cursor: 'pointer', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.6rem',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        <Lock size={15} style={{ color: 'var(--secondary)' }} />
+                        Cambiar Contraseña
+                      </button>
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0.4rem 0' }} />
+                      <button 
+                        onClick={() => { onLogout(); setDropdownOpen(false); }}
+                        style={{ 
+                          width: '100%', 
+                          background: 'none', 
+                          border: 'none', 
+                          padding: '0.6rem 1.2rem', 
+                          textAlign: 'left', 
+                          color: '#fca5a5', 
+                          fontSize: '0.85rem', 
+                          cursor: 'pointer', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.6rem',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        <LogOut size={15} />
+                        Salir
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           ) : (
             <>
               <Link to="/login" className="btn btn-outline" style={{ padding: '0.5rem 1rem' }}>Iniciar Sesión</Link>
@@ -151,6 +357,136 @@ function Navbar({ user, onLogout }) {
           )}
         </div>
       </div>
+
+      {/* Profile edit modal */}
+      {showEditModal && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15,16,38,0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '1rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{ padding: '2rem', width: '100%', maxWidth: '480px', position: 'relative', background: '#1e2049' }}>
+            <button 
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              style={{ position: 'absolute', right: '1.2rem', top: '1.2rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+            <h3 style={{ fontSize: '1.4rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <User size={22} className="text-secondary" /> Editar Datos de Perfil
+            </h3>
+            {editError && (
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid var(--danger)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.2rem', fontSize: '0.85rem' }}>
+                <AlertCircle size={18} />
+                <span>{editError}</span>
+              </div>
+            )}
+            <form onSubmit={handleEditSubmit}>
+              <div className="form-group" style={{ marginBottom: '1.2rem' }}>
+                <label className="form-label">Nombre Completo</label>
+                <input type="text" required className="form-input" style={{ width: '100%' }} value={editNombre} onChange={(e) => setEditNombre(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.2rem' }}>
+                <label className="form-label">Correo Electrónico</label>
+                <input type="email" required className="form-input" style={{ width: '100%' }} value={editCorreo} onChange={(e) => setEditCorreo(e.target.value.trim())} placeholder="jperez@vc-corporation.com" />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">Área / Departamento</label>
+                <select className="form-select" style={{ width: '100%' }} value={editArea} onChange={(e) => setEditArea(e.target.value)}>
+                  {AREAS_GROUPED.map((group, idx) => (
+                    <optgroup key={idx} label={group.label}>
+                      {group.options.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-outline" style={{ padding: '0.5rem 1.2rem', fontSize: '0.9rem' }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={editLoading} className="btn btn-primary" style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem' }}>
+                  {editLoading ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Password edit modal */}
+      {showPasswordModal && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15,16,38,0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '1rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{ padding: '2rem', width: '100%', maxWidth: '480px', position: 'relative', background: '#1e2049' }}>
+            <button 
+              type="button"
+              onClick={() => setShowPasswordModal(false)}
+              style={{ position: 'absolute', right: '1.2rem', top: '1.2rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+            <h3 style={{ fontSize: '1.4rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Lock size={22} className="text-secondary" /> Cambiar Contraseña
+            </h3>
+            {passwordError && (
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid var(--danger)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.2rem', fontSize: '0.85rem' }}>
+                <AlertCircle size={18} />
+                <span>{passwordError}</span>
+              </div>
+            )}
+            {passwordSuccess && (
+              <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid var(--success)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.2rem', fontSize: '0.85rem' }}>
+                <CheckCircle size={18} />
+                <span>{passwordSuccess}</span>
+              </div>
+            )}
+            <form onSubmit={handlePasswordSubmit}>
+              <div className="form-group" style={{ marginBottom: '1.2rem' }}>
+                <label className="form-label">Nueva Contraseña</label>
+                <input type="password" required className="form-input" style={{ width: '100%' }} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">Confirmar Contraseña</label>
+                <input type="password" required className="form-input" style={{ width: '100%' }} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repite la contraseña" />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="btn btn-outline" style={{ padding: '0.5rem 1.2rem', fontSize: '0.9rem' }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={passwordLoading} className="btn btn-primary" style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem' }}>
+                  {passwordLoading ? 'Cambiando...' : 'Cambiar Contraseña'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </header>
   );
 }
@@ -222,6 +558,8 @@ function Login({ onLoginSuccess }) {
 
 function Register({ onLoginSuccess }) {
   const [nombre, setNombre] = useState('');
+  const [usuario, setUsuario] = useState('');
+  const [correo, setCorreo] = useState('');
   const [area, setArea] = useState('Industria');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -237,11 +575,13 @@ function Register({ onLoginSuccess }) {
       // 1. Registro
       await axios.post(`${API_BASE_URL}/auth/register/`, { 
         nombre, 
+        usuario,
+        correo,
         area, 
         password
       });
-      // 2. Login automático (usamos nombre como identificador de inicio de sesión)
-      const res = await axios.post(`${API_BASE_URL}/auth/login/`, { usuario: nombre, password });
+      // 2. Login automático
+      const res = await axios.post(`${API_BASE_URL}/auth/login/`, { usuario, password });
       localStorage.setItem('token', res.data.access);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       onLoginSuccess(res.data.user);
@@ -255,9 +595,11 @@ function Register({ onLoginSuccess }) {
       }
     } catch (err) {
       if (err.response?.data?.usuario) {
-        setError('El usuario ingresado ya existe.');
+        setError('El nombre de usuario ingresado ya existe.');
+      } else if (err.response?.data?.correo) {
+        setError('El correo electrónico ingresado ya está registrado.');
       } else {
-        setError('Error al registrar. Por favor verifica los datos.');
+        setError(err.response?.data?.error || 'Error al registrar. Por favor verifica los datos.');
       }
     } finally {
       setLoading(false);
@@ -278,6 +620,14 @@ function Register({ onLoginSuccess }) {
           <div className="form-group">
             <label className="form-label">Nombre Completo</label>
             <input type="text" required className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Juan Pérez" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Nombre de Usuario (Login)</label>
+            <input type="text" required className="form-input" value={usuario} onChange={(e) => setUsuario(e.target.value.trim())} placeholder="Ej: jperez" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Correo Electrónico</label>
+            <input type="email" required className="form-input" value={correo} onChange={(e) => setCorreo(e.target.value.trim())} placeholder="Ej: jperez@vc-corporation.com" />
           </div>
           <div className="form-group">
             <label className="form-label">Área / Departamento</label>
@@ -487,6 +837,36 @@ function QuizWelcome({ user }) {
   );
 }
 
+function StarRating({ value, onChange }) {
+  const [hoverVal, setHoverVal] = useState(null);
+  
+  return (
+    <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', margin: '0.8rem 0' }}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        const active = (hoverVal !== null ? star <= hoverVal : star <= value);
+        return (
+          <span
+            key={star}
+            onClick={() => onChange(star)}
+            onMouseEnter={() => setHoverVal(star)}
+            onMouseLeave={() => setHoverVal(null)}
+            style={{
+              cursor: 'pointer',
+              fontSize: '2.2rem',
+              color: active ? '#f59e0b' : 'rgba(255, 255, 255, 0.15)',
+              filter: active ? 'drop-shadow(0 0 8px rgba(245, 158, 11, 0.5))' : 'none',
+              transition: 'all 0.15s ease',
+              userSelect: 'none'
+            }}
+          >
+            ★
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function QuizPlay() {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -497,6 +877,17 @@ function QuizPlay() {
   const [respuestas, setRespuestas] = useState({}); // { pregunta_id: opcion_id }
   const [sending, setSending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null); // en segundos
+
+  // Estados para la encuesta de satisfacción del Google Form
+  const [isShowingFeedback, setIsShowingFeedback] = useState(false);
+  const [feedbackTema, setFeedbackTema] = useState(0);
+  const [feedbackCapacitador, setFeedbackCapacitador] = useState(0);
+  const [feedbackComprension, setFeedbackComprension] = useState(0);
+  const [feedbackMateriales, setFeedbackMateriales] = useState(0);
+  const [feedbackConexion, setFeedbackConexion] = useState(0);
+  const [feedbackExpectativas, setFeedbackExpectativas] = useState('');
+  const [feedbackAplicacion, setFeedbackAplicacion] = useState('');
+  const [feedbackComentarios, setFeedbackComentarios] = useState('');
 
   // Cargar datos del state al iniciar
   useEffect(() => {
@@ -561,7 +952,7 @@ function QuizPlay() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (feedbackData = {}) => {
     setSending(true);
     // Convertir el objeto de respuestas a una lista
     const respuestasPayload = Object.keys(respuestas).map(pId => ({
@@ -571,7 +962,8 @@ function QuizPlay() {
 
     try {
       const res = await axios.post(`${API_BASE_URL}/quizzes/${intentoId}/submit/`, {
-        respuestas: respuestasPayload
+        respuestas: respuestasPayload,
+        ...feedbackData
       });
       // Lanzar confeti!
       confetti({
@@ -585,7 +977,8 @@ function QuizPlay() {
           resultado: res.data,
           puntajeObtenido: res.data.intento.puntaje,
           puestoObtenido: res.data.puesto,
-          totalParticipantes: res.data.total_participantes
+          totalParticipantes: res.data.total_participantes,
+          quizData: quiz
         } 
       });
     } catch (err) {
@@ -595,11 +988,211 @@ function QuizPlay() {
     }
   };
 
+  const handleFinalSubmit = () => {
+    handleSubmit({
+      feedback_capacitacion_score: feedbackCapacitador, // Keep for legacy support
+      feedback_preguntas_score: feedbackTema, // Keep for legacy support
+      feedback_tema_score: feedbackTema,
+      feedback_capacitador_score: feedbackCapacitador,
+      feedback_comprension_score: feedbackComprension,
+      feedback_materiales_score: feedbackMateriales,
+      feedback_conexion_score: feedbackConexion,
+      feedback_expectativas: feedbackExpectativas,
+      feedback_aplicacion: feedbackAplicacion,
+      feedback_comentarios: feedbackComentarios
+    });
+  };
+
   const formatTime = (secs) => {
     const mins = Math.floor(secs / 60);
     const remainingSecs = secs % 60;
     return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
+
+  if (isShowingFeedback) {
+    const renderRatingRow = (label, value, onChange) => {
+      const options = [
+        { label: 'Excelente', val: 5 },
+        { label: 'Muy Bueno', val: 4 },
+        { label: 'Bueno', val: 3 },
+        { label: 'Regular', val: 2 },
+        { label: 'Malo', val: 1 }
+      ];
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.03)', paddingBottom: '1rem' }}>
+          <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{label}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.4rem' }}>
+            {options.map((opt) => {
+              const isSelected = value === opt.val;
+              return (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => onChange(opt.val)}
+                  className={`option-button ${isSelected ? 'selected' : ''}`}
+                  style={{
+                    padding: '0.4rem 0.2rem',
+                    fontSize: '0.75rem',
+                    textAlign: 'center',
+                    justifyContent: 'center',
+                    borderColor: isSelected ? 'var(--secondary)' : 'rgba(255,255,255,0.06)',
+                    background: isSelected ? 'rgba(6, 182, 212, 0.12)' : 'rgba(255,255,255,0.01)',
+                    borderRadius: 'var(--radius-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.15rem'
+                  }}
+                >
+                  <span style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{opt.val}</span>
+                  <span style={{ fontSize: '0.6rem', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    const isSubmitDisabled = 
+      sending || 
+      feedbackTema === 0 || 
+      feedbackCapacitador === 0 || 
+      feedbackComprension === 0 || 
+      feedbackMateriales === 0 || 
+      feedbackConexion === 0 || 
+      feedbackExpectativas === '' || 
+      feedbackAplicacion === '';
+
+    return (
+      <div className="main-content animate-fade-in" style={{ maxWidth: '850px', margin: '2rem auto' }}>
+        <div className="glass-panel" style={{ padding: '2.5rem' }}>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <Award size={48} className="text-secondary" style={{ marginBottom: '1rem', color: 'var(--secondary)', display: 'inline-block' }} />
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>¡Cuestionario Completado!</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+              Antes de ver tus resultados detallados, por favor ayúdanos a responder esta breve encuesta.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.8rem', textAlign: 'left', marginBottom: '2.5rem' }}>
+            {/* I. CALIFICACIÓN GENERAL */}
+            <div>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--secondary)', marginBottom: '1.2rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
+                I. Calificación General
+              </h3>
+              {renderRatingRow('Tema', feedbackTema, setFeedbackTema)}
+              {renderRatingRow('Capacitador', feedbackCapacitador, setFeedbackCapacitador)}
+              {renderRatingRow('Comprensión', feedbackComprension, setFeedbackComprension)}
+              {renderRatingRow('Materiales', feedbackMateriales, setFeedbackMateriales)}
+              {renderRatingRow('Medio de Conexión', feedbackConexion, setFeedbackConexion)}
+            </div>
+
+            {/* II. ¿CUMPLIÓ EXPECTATIVAS? */}
+            <div>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
+                II. ¿Cumplió Expectativas?
+              </h3>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                {['Si', 'No'].map((opt) => {
+                  const isSelected = feedbackExpectativas === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setFeedbackExpectativas(opt)}
+                      className={`option-button ${isSelected ? 'selected' : ''}`}
+                      style={{
+                        flex: 1,
+                        padding: '0.8rem',
+                        justifyContent: 'center',
+                        borderColor: isSelected ? 'var(--secondary)' : 'rgba(255,255,255,0.08)',
+                        background: isSelected ? 'rgba(6, 182, 212, 0.12)' : 'rgba(255,255,255,0.01)'
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* III. APLICACIÓN DEL CONOCIMIENTO */}
+            <div>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
+                III. Aplicación del Conocimiento
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {[
+                  'Se Aplica Regularmente',
+                  'Se Aplica Escasamente',
+                  'No se Aplica',
+                  'Se Prevé Aplicar a Futuro'
+                ].map((opt) => {
+                  const isSelected = feedbackAplicacion === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setFeedbackAplicacion(opt)}
+                      className={`option-button ${isSelected ? 'selected' : ''}`}
+                      style={{
+                        padding: '0.8rem 1.2rem',
+                        justifyContent: 'flex-start',
+                        borderColor: isSelected ? 'var(--secondary)' : 'rgba(255,255,255,0.08)',
+                        background: isSelected ? 'rgba(6, 182, 212, 0.12)' : 'rgba(255,255,255,0.01)'
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* IV. COMENTARIOS */}
+            <div>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--secondary)', marginBottom: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
+                IV. Comentarios
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.8rem', lineHeight: '1.4' }}>
+                Sus comentarios son importantes, por favor envíe sus aportes a <a href="mailto:calidad@vc-corporation.com" style={{ color: 'var(--secondary)', textDecoration: 'none', fontWeight: 'bold' }}>calidad@vc-corporation.com</a> <span style={{ opacity: 0.6, fontSize: '0.8rem' }}>(de pruebas temporalmente a diego.rengifo@vc-corporation.com)</span>
+              </p>
+              <textarea 
+                className="form-textarea" 
+                rows={3} 
+                placeholder="Escribe aquí algún comentario o sugerencia adicional (opcional)..." 
+                value={feedbackComentarios}
+                onChange={(e) => setFeedbackComentarios(e.target.value)}
+                style={{ padding: '0.8rem', fontSize: '0.95rem', resize: 'vertical', width: '100%', minHeight: '120px', display: 'block' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <button 
+              type="button"
+              onClick={() => setIsShowingFeedback(false)} 
+              className="btn btn-outline" 
+              disabled={sending}
+              style={{ padding: '0.7rem 1.5rem', fontSize: '0.95rem' }}
+            >
+              <ArrowLeft size={16} /> Regresar
+            </button>
+            <button 
+              type="button"
+              onClick={handleFinalSubmit} 
+              className="btn btn-secondary pulse-glow" 
+              disabled={isSubmitDisabled}
+              style={{ padding: '0.7rem 2rem', fontSize: '1rem' }}
+            >
+              {sending ? 'Enviando...' : 'Enviar y Finalizar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="main-content animate-fade-in" style={{ maxWidth: '800px', margin: '2rem auto' }}>
@@ -623,9 +1216,29 @@ function QuizPlay() {
 
       {/* Tarjeta de Pregunta */}
       <div className="glass-panel" style={{ padding: '2.5rem', marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem', lineHeight: '1.4' }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: currentPregunta?.imagen ? '1.2rem' : '2rem', lineHeight: '1.4' }}>
           {currentPregunta?.texto}
         </h2>
+
+        {currentPregunta?.imagen && (
+          <div style={{ textAlign: 'center', marginBottom: '1.8rem' }}>
+            <img 
+              src={currentPregunta.imagen} 
+              alt="Imagen ilustrativa" 
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '380px', 
+                borderRadius: 'var(--radius-md)', 
+                objectFit: 'contain', 
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: '0 8px 25px rgba(0,0,0,0.3)',
+                cursor: 'pointer'
+              }} 
+              onClick={() => window.open(currentPregunta.imagen, '_blank')}
+              title="Clic para abrir en una pestaña nueva"
+            />
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {currentPregunta?.opciones.map((opcion, idx) => {
@@ -662,12 +1275,12 @@ function QuizPlay() {
           </button>
         ) : (
           <button 
-            onClick={handleSubmit} 
+            onClick={() => setIsShowingFeedback(true)} 
             disabled={!respuestas[currentPregunta?.id] || sending} 
             className="btn btn-secondary pulse-glow"
             style={{ padding: '0.8rem 2.5rem', fontSize: '1.1rem' }}
           >
-            {sending ? 'Enviando...' : 'Finalizar Evaluación'}
+            Siguiente (Encuesta) <ArrowRight size={18} />
           </button>
         )}
       </div>
@@ -681,6 +1294,7 @@ function QuizLeaderboard() {
   const [quizInfo, setQuizInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userResult, setUserResult] = useState(null);
+  const [showReview, setShowReview] = useState(false);
 
   // Intentar capturar resultados inmediatos del juego (si venimos de enviar las respuestas)
   useEffect(() => {
@@ -700,6 +1314,15 @@ function QuizLeaderboard() {
       })
       .then(res => {
         setRanking(res.data);
+        if (res.data.mi_intento) {
+          setUserResult({
+            resultado: res.data.mi_intento,
+            puntajeObtenido: res.data.mi_intento.intento.puntaje,
+            puestoObtenido: res.data.mi_intento.puesto,
+            totalParticipantes: res.data.mi_intento.total_participantes,
+            quizData: { preguntas: res.data.mi_intento.preguntas }
+          });
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -733,35 +1356,237 @@ function QuizLeaderboard() {
         </button>
       </div>
 
-      {/* Tarjeta de resultado personal (si acaba de terminar el test) */}
-      {userResult && (
-        <div className="glass-panel pulse-glow" style={{ padding: '2rem', marginBottom: '2.5rem', borderLeft: '4px solid var(--success)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(30, 32, 73, 0.6))' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
-                <CheckCircle size={22} />
-                <span style={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Evaluación Completada</span>
+      {/* Tarjeta de resultado personal (si acaba de terminar el test o ya tiene un intento registrado) */}
+      {userResult && (() => {
+        const totalPreguntas = userResult.quizData?.preguntas?.length || 0;
+        const respuestasDetalles = userResult.resultado?.respuestas_detalles || [];
+        const correctas = respuestasDetalles.filter(r => r.es_correcta).length;
+        const incorrectas = totalPreguntas - correctas;
+        const precision = totalPreguntas > 0 ? Math.round((correctas / totalPreguntas) * 100) : 0;
+
+        return (
+          <div className="glass-panel pulse-glow" style={{ padding: '2rem', marginBottom: '2.5rem', borderLeft: '4px solid var(--success)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(30, 32, 73, 0.6))' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
+                  <CheckCircle size={22} />
+                  <span style={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Evaluación Completada</span>
+                </div>
+                <h3 style={{ marginTop: '0.5rem' }}>¡Excelente esfuerzo, {window.JSON.parse(localStorage.getItem('user'))?.nombre}!</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                  Tus respuestas han sido evaluadas en el servidor corporativo.
+                </p>
               </div>
-              <h3 style={{ marginTop: '0.5rem' }}>¡Excelente esfuerzo, {window.JSON.parse(localStorage.getItem('user'))?.nombre}!</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                Tus respuestas han sido evaluadas en el servidor corporativo.
-              </p>
+              <div style={{ display: 'flex', gap: '2rem', paddingRight: '1rem' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>TU PUNTAJE</span>
+                  <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--success)' }}>{userResult.puntajeObtenido}</span>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '2rem' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>PUESTO</span>
+                  <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--secondary)' }}>
+                    #{userResult.puestoObtenido} <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>/ {userResult.totalParticipantes}</span>
+                  </span>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '2rem', paddingRight: '1rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>TU PUNTAJE</span>
-                <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--success)' }}>{userResult.puntajeObtenido}</span>
-              </div>
-              <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '2rem' }}>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>PUESTO</span>
-                <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--secondary)' }}>
-                  #{userResult.puestoObtenido} <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>/ {userResult.totalParticipantes}</span>
-                </span>
-              </div>
+
+            {/* Divider */}
+            <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '1.5rem 0' }}></div>
+
+            {/* Botón para desplegar la revisión */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button 
+                onClick={() => setShowReview(!showReview)} 
+                className="btn btn-outline" 
+                style={{ padding: '0.6rem 1.5rem', fontSize: '0.95rem', gap: '0.6rem', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                {showReview ? (
+                  <>Ocultar Revisión Detallada <ArrowLeft size={16} style={{ transform: 'rotate(270deg)', transition: 'transform 0.3s' }} /></>
+                ) : (
+                  <>Ver Revisión Detallada <ArrowRight size={16} style={{ transform: 'rotate(90deg)', transition: 'transform 0.3s' }} /></>
+                )}
+              </button>
             </div>
+
+            {showReview && (
+              <div className="animate-fade-in" style={{ marginTop: '1.5rem' }}>
+                {/* Cuadrícula de Métricas */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                  <div className="glass-panel" style={{ padding: '1.2rem 1rem', textAlign: 'center', background: 'rgba(30, 32, 73, 0.4)', borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Preguntas</span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-primary)' }}>{totalPreguntas}</span>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '1.2rem 1rem', textAlign: 'center', background: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Correctas</span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--success)' }}>{correctas}</span>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '1.2rem 1rem', textAlign: 'center', background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Incorrectas</span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--danger)' }}>{incorrectas}</span>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '1.2rem 1rem', textAlign: 'center', background: 'rgba(6, 182, 212, 0.15)', borderColor: 'rgba(6, 182, 212, 0.2)' }}>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Precisión</span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--secondary)' }}>{precision}%</span>
+                  </div>
+                </div>
+
+                {/* Lista de Preguntas */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <h4 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                    Revisión de Preguntas
+                  </h4>
+                  {userResult.quizData?.preguntas?.map((preg, idx) => {
+                    const respDetalle = respuestasDetalles.find(r => r.pregunta_id === preg.id) || {};
+                    const esCorrecta = respDetalle.es_correcta;
+                    const seleccionadaId = respDetalle.opcion_seleccionada_id;
+                    const correctaId = respDetalle.opcion_correcta_id;
+
+                    return (
+                      <div 
+                        key={preg.id} 
+                        className="glass-panel animate-fade-in" 
+                        style={{ 
+                          padding: '1.5rem', 
+                          background: 'rgba(15, 16, 38, 0.4)', 
+                          borderColor: esCorrecta ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)',
+                          borderLeft: `4px solid ${esCorrecta ? 'var(--success)' : 'var(--danger)'}`
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
+                          <h5 style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', margin: 0, flex: 1, lineHeight: '1.4' }}>
+                            {idx + 1}. {preg.texto}
+                          </h5>
+                          <span style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '0.4rem', 
+                            padding: '0.3rem 0.8rem', 
+                            borderRadius: 'var(--radius-full)', 
+                            fontSize: '0.8rem', 
+                            fontWeight: 'bold',
+                            background: esCorrecta ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: esCorrecta ? 'var(--success)' : 'var(--danger)',
+                            border: `1px solid ${esCorrecta ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                          }}>
+                            {esCorrecta ? (
+                              <><Check size={14} /> Correcta (+{preg.puntos} pts)</>
+                            ) : (
+                              <><X size={14} /> Incorrecta (0 pts)</>
+                            )}
+                          </span>
+                        </div>
+
+                        {preg.imagen && (
+                          <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+                            <img 
+                              src={preg.imagen} 
+                              alt={`Pregunta ${idx + 1}`} 
+                              style={{ maxHeight: '200px', maxWidth: '100%', borderRadius: 'var(--radius-sm)', objectFit: 'contain', border: '1px solid rgba(255,255,255,0.1)' }} 
+                            />
+                          </div>
+                        )}
+
+                        {/* Opciones */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                          {preg.opciones?.map((opc, opcIdx) => {
+                            const letter = String.fromCharCode(65 + opcIdx);
+                            const isCorrectOption = opc.id === correctaId || opc.es_correcta;
+                            const isSelectedOption = opc.id === seleccionadaId;
+
+                            let opcStyle = {
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '1rem',
+                              padding: '0.8rem 1.2rem',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: '0.95rem',
+                              border: '2px solid rgba(255, 255, 255, 0.05)',
+                              background: 'rgba(30, 32, 73, 0.3)',
+                              position: 'relative',
+                              transition: 'all var(--transition-fast)'
+                            };
+
+                            if (isCorrectOption) {
+                              opcStyle.borderColor = 'var(--success)';
+                              opcStyle.background = 'rgba(16, 185, 129, 0.1)';
+                            } else if (isSelectedOption && !esCorrecta) {
+                              opcStyle.borderColor = 'var(--danger)';
+                              opcStyle.background = 'rgba(239, 68, 68, 0.1)';
+                            }
+
+                            return (
+                              <div key={opc.id} style={opcStyle}>
+                                <div className="option-badge" style={{ 
+                                  background: isCorrectOption 
+                                    ? 'var(--success)' 
+                                    : isSelectedOption 
+                                      ? 'var(--danger)' 
+                                      : 'rgba(15, 16, 38, 0.5)',
+                                  borderColor: isCorrectOption 
+                                    ? 'var(--success)' 
+                                    : isSelectedOption 
+                                      ? 'var(--danger)' 
+                                      : 'var(--border-color)',
+                                  color: (isCorrectOption || isSelectedOption) ? '#0f1026' : 'var(--text-primary)',
+                                  width: '26px',
+                                  height: '26px',
+                                  fontSize: '0.85rem'
+                                }}>
+                                  {letter}
+                                </div>
+                                <span style={{ flex: 1, color: (isCorrectOption || isSelectedOption) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                  {opc.texto}
+                                </span>
+
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  {isSelectedOption && (
+                                    <span style={{
+                                      fontSize: '0.7rem',
+                                      padding: '0.15rem 0.4rem',
+                                      borderRadius: 'var(--radius-sm)',
+                                      background: esCorrecta ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                      color: esCorrecta ? 'var(--success)' : 'var(--danger)',
+                                      fontWeight: 'bold',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.02em'
+                                    }}>
+                                      Tu elección
+                                    </span>
+                                  )}
+                                  {isCorrectOption && !isSelectedOption && (
+                                    <span style={{
+                                      fontSize: '0.7rem',
+                                      padding: '0.15rem 0.4rem',
+                                      borderRadius: 'var(--radius-sm)',
+                                      background: 'rgba(16, 185, 129, 0.2)',
+                                      color: 'var(--success)',
+                                      fontWeight: 'bold',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.02em'
+                                    }}>
+                                      Correcta
+                                    </span>
+                                  )}
+                                  {isCorrectOption ? (
+                                    <Check size={16} style={{ color: 'var(--success)' }} />
+                                  ) : isSelectedOption && !esCorrecta ? (
+                                    <X size={16} style={{ color: 'var(--danger)' }} />
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {ranking?.ranking_individual.length === 0 ? (
         <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
@@ -1330,7 +2155,7 @@ const parseTextQuestions = (text) => {
       const textContent = questionMatch ? questionMatch[1] : line;
       currentQuestion = {
         texto: textContent,
-        puntos: 10,
+        puntos: 1,
         opciones: []
       };
     } else if (currentQuestion) {
@@ -1449,7 +2274,7 @@ const parseCsvQuestions = (text) => {
       continue;
     }
 
-    let puntos = 10;
+    let puntos = 1;
     let correctIndex = 0;
     let optionsEnd = parts.length;
 
@@ -1508,7 +2333,7 @@ const parseExcelRows = (rows) => {
     }
 
     const textoPregunta = String(row[0] || '').trim();
-    let puntos = 10;
+    let puntos = 1;
     let optionsEnd = row.length;
 
     const lastCellVal = parseInt(row[row.length - 1]);
@@ -2033,7 +2858,8 @@ function AdminCreateQuiz() {
   const [preguntas, setPreguntas] = useState([
     {
       texto: '',
-      puntos: 10,
+      imagen: '',
+      puntos: 1,
       opciones: [
         { texto: '', es_correcta: true },
         { texto: '', es_correcta: false },
@@ -2050,7 +2876,8 @@ function AdminCreateQuiz() {
       ...preguntas,
       {
         texto: '',
-        puntos: 10,
+        imagen: '',
+        puntos: 1,
         opciones: [
           { texto: '', es_correcta: true },
           { texto: '', es_correcta: false },
@@ -2072,9 +2899,36 @@ function AdminCreateQuiz() {
     setPreguntas(updated);
   };
 
+  const handleImagenChange = (pIdx, val) => {
+    const updated = [...preguntas];
+    updated[pIdx].imagen = val;
+    setPreguntas(updated);
+  };
+
+  const handleImagenFileUpload = (pIdx, file) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('La imagen es demasiado grande. Por favor selecciona una imagen menor a 8MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const updated = [...preguntas];
+      updated[pIdx].imagen = reader.result;
+      setPreguntas(updated);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImagen = (pIdx) => {
+    const updated = [...preguntas];
+    updated[pIdx].imagen = '';
+    setPreguntas(updated);
+  };
+
   const handlePuntosChange = (pIdx, val) => {
     const updated = [...preguntas];
-    updated[pIdx].puntos = parseInt(val) || 10;
+    updated[pIdx].puntos = val === '' ? '' : (parseInt(val) || 0);
     setPreguntas(updated);
   };
 
@@ -2117,8 +2971,12 @@ function AdminCreateQuiz() {
       const quizId = quizRes.data.id;
 
       // 2. Sincronizar Preguntas y Opciones
+      const cleanedPreguntas = preguntas.map(p => ({
+        ...p,
+        puntos: parseInt(p.puntos) || 1
+      }));
       await axios.post(`${API_BASE_URL}/admin/quizzes/${quizId}/questions/sync/`, {
-        preguntas: preguntas
+        preguntas: cleanedPreguntas
       });
 
       alert('¡Cuestionario creado con éxito!');
@@ -2212,6 +3070,57 @@ function AdminCreateQuiz() {
                   <label className="form-label">Puntos</label>
                   <input type="number" min={1} className="form-input" value={pregunta.puntos} onChange={(e) => handlePuntosChange(pIdx, e.target.value)} />
                 </div>
+              </div>
+
+              {/* Campo de Imagen opcional */}
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Image size={15} /> Imagen Ilustrativa (Opcional - Riesgos, Señalética, Esquemas, etc.)
+                </label>
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{ flex: 1, minWidth: '220px' }} 
+                    placeholder="URL de la imagen (o sube un archivo →)" 
+                    value={pregunta.imagen || ''} 
+                    onChange={(e) => handleImagenChange(pIdx, e.target.value)} 
+                  />
+                  <label className="btn btn-outline" style={{ cursor: 'pointer', padding: '0.55rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                    <Upload size={15} /> Subir Imagen
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      style={{ display: 'none' }} 
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleImagenFileUpload(pIdx, e.target.files[0]);
+                        }
+                      }} 
+                    />
+                  </label>
+                  {pregunta.imagen && (
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveImagen(pIdx)} 
+                      className="btn btn-danger" 
+                      style={{ padding: '0.55rem 0.8rem', fontSize: '0.85rem' }} 
+                      title="Quitar Imagen"
+                    >
+                      <Trash2 size={15} /> Quitar
+                    </button>
+                  )}
+                </div>
+
+                {pregunta.imagen && (
+                  <div style={{ marginTop: '0.8rem' }}>
+                    <img 
+                      src={pregunta.imagen} 
+                      alt="Vista previa" 
+                      style={{ maxHeight: '160px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.15)', objectFit: 'contain', background: 'rgba(0,0,0,0.3)' }} 
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Opciones de respuesta */}
@@ -2445,7 +3354,8 @@ function AdminQuizManage() {
       ...preguntas,
       {
         texto: '',
-        puntos: 10,
+        imagen: '',
+        puntos: 1,
         opciones: [
           { texto: '', es_correcta: true },
           { texto: '', es_correcta: false },
@@ -2467,9 +3377,36 @@ function AdminQuizManage() {
     setPreguntas(updated);
   };
 
+  const handleImagenChange = (pIdx, val) => {
+    const updated = [...preguntas];
+    updated[pIdx].imagen = val;
+    setPreguntas(updated);
+  };
+
+  const handleImagenFileUpload = (pIdx, file) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('La imagen es demasiado grande. Por favor selecciona una imagen menor a 8MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const updated = [...preguntas];
+      updated[pIdx].imagen = reader.result;
+      setPreguntas(updated);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImagen = (pIdx) => {
+    const updated = [...preguntas];
+    updated[pIdx].imagen = '';
+    setPreguntas(updated);
+  };
+
   const handlePuntosChange = (pIdx, val) => {
     const updated = [...preguntas];
-    updated[pIdx].puntos = parseInt(val) || 10;
+    updated[pIdx].puntos = val === '' ? '' : (parseInt(val) || 0);
     setPreguntas(updated);
   };
 
@@ -2509,8 +3446,12 @@ function AdminQuizManage() {
       });
 
       // 2. Sincronizar preguntas
+      const cleanedPreguntas = preguntas.map(p => ({
+        ...p,
+        puntos: parseInt(p.puntos) || 1
+      }));
       await axios.post(`${API_BASE_URL}/admin/quizzes/${id}/questions/sync/`, {
-        preguntas: preguntas
+        preguntas: cleanedPreguntas
       });
 
       alert('¡Cuestionario actualizado con éxito!');
@@ -2753,27 +3694,213 @@ function AdminQuizManage() {
                   )}
                 </div>
 
-                {/* Desempeño agrupado por áreas */}
-                <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                  <h3 style={{ marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
-                    <Users className="text-secondary" size={20} /> Promedio por Áreas
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-                    {ranking?.ranking_areas.map((areaStat, index) => (
-                      <div key={areaStat.area_codigo} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.8rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.85rem' }}>
-                          <span style={{ fontWeight: 'bold' }}>{index + 1}. {areaStat.area_nombre}</span>
-                          <span style={{ color: 'var(--text-secondary)' }}>{areaStat.participantes} parts.</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ width: '70%', height: '6px', background: 'rgba(15,16,38,0.5)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', background: 'linear-gradient(90deg, var(--secondary), var(--primary))', width: `${Math.min(areaStat.puntaje_promedio * 2, 100)}%` }}></div>
+                {/* Columna Derecha: Promedio por áreas y Feedback de la capacitación */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {/* Desempeño agrupado por áreas */}
+                  <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                    <h3 style={{ marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                      <Users className="text-secondary" size={20} /> Promedio por Áreas
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                      {ranking?.ranking_areas.map((areaStat, index) => (
+                        <div key={areaStat.area_codigo} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.8rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.85rem' }}>
+                            <span style={{ fontWeight: 'bold' }}>{index + 1}. {areaStat.area_nombre}</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{areaStat.participantes} parts.</span>
                           </div>
-                          <span style={{ fontWeight: '800', color: 'var(--secondary)', fontSize: '0.9rem' }}>{areaStat.puntaje_promedio} pts</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ width: '70%', height: '6px', background: 'rgba(15,16,38,0.5)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', background: 'linear-gradient(90deg, var(--secondary), var(--primary))', width: `${Math.min(areaStat.puntaje_promedio * 2, 100)}%` }}></div>
+                            </div>
+                            <span style={{ fontWeight: '800', color: 'var(--secondary)', fontSize: '0.9rem' }}>{areaStat.puntaje_promedio} pts</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feedback de la capacitación */}
+                  {(() => {
+                    const completedAttempts = ranking?.ranking_individual || [];
+                    const feedbackAttempts = completedAttempts.filter(item => 
+                      item.feedback_tema_score || 
+                      item.feedback_capacitacion_score ||
+                      item.feedback_expectativas ||
+                      item.feedback_aplicacion
+                    );
+                    const totalFeedbackCount = feedbackAttempts.length;
+
+                    // I. Calificación General Promedios
+                    const temaAttempts = feedbackAttempts.filter(i => i.feedback_tema_score);
+                    const avgTema = temaAttempts.length > 0 
+                      ? (temaAttempts.reduce((acc, curr) => acc + (curr.feedback_tema_score || 0), 0) / temaAttempts.length).toFixed(1)
+                      : null;
+
+                    const capAttempts = feedbackAttempts.filter(i => i.feedback_capacitador_score || i.feedback_capacitacion_score);
+                    const avgCapacitador = capAttempts.length > 0 
+                      ? (capAttempts.reduce((acc, curr) => acc + (curr.feedback_capacitador_score || curr.feedback_capacitacion_score || 0), 0) / capAttempts.length).toFixed(1)
+                      : null;
+
+                    const compAttempts = feedbackAttempts.filter(i => i.feedback_comprension_score);
+                    const avgComprension = compAttempts.length > 0 
+                      ? (compAttempts.reduce((acc, curr) => acc + (curr.feedback_comprension_score || 0), 0) / compAttempts.length).toFixed(1)
+                      : null;
+
+                    const matAttempts = feedbackAttempts.filter(i => i.feedback_materiales_score);
+                    const avgMateriales = matAttempts.length > 0 
+                      ? (matAttempts.reduce((acc, curr) => acc + (curr.feedback_materiales_score || 0), 0) / matAttempts.length).toFixed(1)
+                      : null;
+
+                    const conAttempts = feedbackAttempts.filter(i => i.feedback_conexion_score);
+                    const avgConexion = conAttempts.length > 0 
+                      ? (conAttempts.reduce((acc, curr) => acc + (curr.feedback_conexion_score || 0), 0) / conAttempts.length).toFixed(1)
+                      : null;
+
+                    // II. ¿Cumplió Expectativas?
+                    const totalExpectativas = feedbackAttempts.filter(i => i.feedback_expectativas).length;
+                    const expectSi = feedbackAttempts.filter(i => i.feedback_expectativas === 'Si').length;
+                    const expectNo = feedbackAttempts.filter(i => i.feedback_expectativas === 'No').length;
+                    const pctSi = totalExpectativas > 0 ? Math.round((expectSi / totalExpectativas) * 100) : 0;
+                    const pctNo = totalExpectativas > 0 ? Math.round((expectNo / totalExpectativas) * 100) : 0;
+
+                    // III. Aplicación del Conocimiento
+                    const totalAplicacion = feedbackAttempts.filter(i => i.feedback_aplicacion).length;
+                    const aplRegularmente = feedbackAttempts.filter(i => i.feedback_aplicacion === 'Se Aplica Regularmente').length;
+                    const aplEscasamente = feedbackAttempts.filter(i => i.feedback_aplicacion === 'Se Aplica Escasamente').length;
+                    const aplNoAplica = feedbackAttempts.filter(i => i.feedback_aplicacion === 'No se Aplica').length;
+                    const aplFuturo = feedbackAttempts.filter(i => i.feedback_aplicacion === 'Se Prevé Aplicar a Futuro').length;
+
+                    const pctRegularmente = totalAplicacion > 0 ? Math.round((aplRegularmente / totalAplicacion) * 100) : 0;
+                    const pctEscasamente = totalAplicacion > 0 ? Math.round((aplEscasamente / totalAplicacion) * 100) : 0;
+                    const pctNoAplica = totalAplicacion > 0 ? Math.round((aplNoAplica / totalAplicacion) * 100) : 0;
+                    const pctFuturo = totalAplicacion > 0 ? Math.round((aplFuturo / totalAplicacion) * 100) : 0;
+
+                    const recentComments = feedbackAttempts
+                      .filter(item => item.feedback_comentarios && item.feedback_comentarios.trim() !== '')
+                      .slice(0, 8); // top 8 comments
+
+                    return (
+                      <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem' }}>
+                        <h3 style={{ marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                          <Sparkles className="text-secondary" size={20} /> Encuesta de Satisfacción
+                        </h3>
+
+                        {/* I. Calificación General */}
+                        <div style={{ marginBottom: '1.8rem' }}>
+                          <h4 style={{ fontSize: '0.9rem', color: 'var(--secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            I. Calificación General (Promedios)
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            {[
+                              { label: 'Tema / Exposición', avg: avgTema },
+                              { label: 'Capacitador', avg: avgCapacitador },
+                              { label: 'Comprensión', avg: avgComprension },
+                              { label: 'Materiales', avg: avgMateriales },
+                              { label: 'Medio de Conexión', avg: avgConexion }
+                            ].map((aspect, idx) => {
+                              const score = aspect.avg ? parseFloat(aspect.avg) : 0;
+                              const widthPct = (score / 5) * 100;
+                              return (
+                                <div key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '0.5rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem', fontSize: '0.8rem' }}>
+                                    <span style={{ fontWeight: '500' }}>{aspect.label}</span>
+                                    <span style={{ fontWeight: 'bold', color: 'var(--secondary)' }}>{aspect.avg ? `${aspect.avg} / 5` : '—'}</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '6px', background: 'rgba(15,16,38,0.5)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', background: 'linear-gradient(90deg, var(--secondary), var(--primary))', width: `${widthPct}%` }}></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* II. Expectativas */}
+                        <div style={{ marginBottom: '1.8rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.2rem' }}>
+                          <h4 style={{ fontSize: '0.9rem', color: 'var(--secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            II. ¿Cumplió Expectativas?
+                          </h4>
+                          {totalExpectativas === 0 ? (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Sin respuestas</span>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                              {[
+                                { label: 'Sí', pct: pctSi, color: 'var(--success)' },
+                                { label: 'No', pct: pctNo, color: 'var(--danger)' }
+                              ].map((item, idx) => (
+                                <div key={idx}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem', fontSize: '0.8rem' }}>
+                                    <span>{item.label}</span>
+                                    <span style={{ fontWeight: 'bold', color: item.color }}>{item.pct}%</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '6px', background: 'rgba(15,16,38,0.5)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', background: item.color, width: `${item.pct}%` }}></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* III. Aplicación del Conocimiento */}
+                        <div style={{ marginBottom: '1.8rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.2rem' }}>
+                          <h4 style={{ fontSize: '0.9rem', color: 'var(--secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            III. Aplicación del Conocimiento
+                          </h4>
+                          {totalAplicacion === 0 ? (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Sin respuestas</span>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                              {[
+                                { label: 'Se Aplica Regularmente', pct: pctRegularmente },
+                                { label: 'Se Aplica Escasamente', pct: pctEscasamente },
+                                { label: 'No se Aplica', pct: pctNoAplica },
+                                { label: 'Se Prevé Aplicar a Futuro', pct: pctFuturo }
+                              ].map((item, idx) => (
+                                <div key={idx}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem', fontSize: '0.8rem' }}>
+                                    <span style={{ fontSize: '0.75rem' }}>{item.label}</span>
+                                    <span style={{ fontWeight: 'bold', color: 'var(--secondary)' }}>{item.pct}%</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '6px', background: 'rgba(15,16,38,0.5)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', background: 'linear-gradient(90deg, var(--secondary), var(--primary))', width: `${item.pct}%` }}></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* IV. Comentarios */}
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.2rem' }}>
+                          <h4 style={{ fontSize: '0.9rem', color: 'var(--secondary)', marginBottom: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Opiniones / Comentarios ({recentComments.length})
+                          </h4>
+                          {recentComments.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: '1rem 0' }}>Aún no hay comentarios.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '220px', overflowY: 'auto', paddingRight: '0.3rem' }}>
+                              {recentComments.map((item, idx) => (
+                                <div key={idx} style={{ background: 'rgba(15, 16, 38, 0.4)', padding: '0.8rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                                    <span style={{ fontWeight: 'bold', fontSize: '0.8rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
+                                    <span className="tag-badge tag-badge-primary" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', whiteSpace: 'nowrap' }}>{item.area}</span>
+                                  </div>
+                                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0, fontStyle: 'italic', lineHeight: '1.4' }}>
+                                    "{item.feedback_comentarios}"
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '1.2rem', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '0.5rem' }}>
+                          Encuestas completadas: <strong>{totalFeedbackCount}</strong>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -2886,6 +4013,56 @@ function AdminQuizManage() {
                   <div className="form-group" style={{ marginBottom: '0.8rem', gap: '0.3rem' }}>
                     <label className="form-label" style={{ fontSize: '0.7rem' }}>Puntos</label>
                     <input type="number" min={1} className="form-input" style={{ padding: '0.5rem', fontSize: '0.85rem' }} value={pregunta.puntos} onChange={(e) => handlePuntosChange(pIdx, e.target.value)} />
+                  </div>
+
+                  {/* Imagen Ilustrativa (Opcional) */}
+                  <div className="form-group" style={{ marginBottom: '0.8rem', gap: '0.3rem' }}>
+                    <label className="form-label" style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Image size={12} /> Imagen (Opcional)
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        style={{ padding: '0.4rem 0.5rem', fontSize: '0.75rem', flex: 1 }} 
+                        placeholder="URL de imagen" 
+                        value={pregunta.imagen || ''} 
+                        onChange={(e) => handleImagenChange(pIdx, e.target.value)} 
+                      />
+                      <label className="btn btn-outline" style={{ cursor: 'pointer', padding: '0.4rem 0.6rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.2rem', margin: 0 }}>
+                        <Upload size={12} /> Subir
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          style={{ display: 'none' }} 
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleImagenFileUpload(pIdx, e.target.files[0]);
+                            }
+                          }} 
+                        />
+                      </label>
+                      {pregunta.imagen && (
+                        <button 
+                          type="button" 
+                          onClick={() => handleRemoveImagen(pIdx)} 
+                          className="btn btn-danger" 
+                          style={{ padding: '0.4rem 0.5rem', fontSize: '0.75rem' }} 
+                          title="Quitar Imagen"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                    {pregunta.imagen && (
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <img 
+                          src={pregunta.imagen} 
+                          alt="Vista previa" 
+                          style={{ maxHeight: '90px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.15)', objectFit: 'contain', background: 'rgba(0,0,0,0.3)' }} 
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
@@ -3054,7 +4231,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="app-container">
-        <Navbar user={user} onLogout={handleLogout} />
+        <Navbar user={user} onLogout={handleLogout} onUserUpdate={setUser} />
         
         <Routes>
           {/* Rutas Colaborador Públicas / Semi-públicas */}
