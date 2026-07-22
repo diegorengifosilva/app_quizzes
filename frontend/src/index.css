@@ -368,7 +368,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .podium-pillar {
-  width: 120px;
+  width: 150px;
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.2) 0%, rgba(99, 102, 241, 0.05) 100%);
   border: 1px solid rgba(99, 102, 241, 0.3);
   border-bottom: none;
@@ -381,19 +381,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .podium-1st .podium-pillar {
-  height: 180px;
+  height: 200px;
   border-color: rgba(245, 158, 11, 0.4);
   background: linear-gradient(180deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.05) 100%);
 }
 
 .podium-2nd .podium-pillar {
-  height: 140px;
+  height: 165px;
   border-color: rgba(203, 213, 225, 0.4);
   background: linear-gradient(180deg, rgba(203, 213, 225, 0.15) 0%, rgba(203, 213, 225, 0.03) 100%);
 }
 
 .podium-3rd .podium-pillar {
-  height: 110px;
+  height: 135px;
   border-color: rgba(180, 83, 9, 0.4);
   background: linear-gradient(180deg, rgba(180, 83, 9, 0.15) 0%, rgba(180, 83, 9, 0.03) 100%);
 }
@@ -676,10 +676,11 @@ h1, h2, h3, h4, h5, h6 {
     padding-top: 1rem;
   }
   .podium-item {
-    width: 110px;
+    width: 140px;
   }
   .podium-pillar {
-    padding: 1rem 0.5rem;
+    width: 140px !important;
+    padding: 0.8rem 0.4rem;
   }
   .podium-avatar {
     width: 65px;

@@ -1331,8 +1331,8 @@ function QuizPlay() {
               </div>
             </div>
 
-            {/* IV. COMENTARIOS */}
-            <div>
+            {/* IV. COMENTARIOS (Ocultado temporalmente) */}
+            <div style={{ display: 'none' }}>
               <h3 style={{ fontSize: '1.05rem', color: 'var(--secondary)', marginBottom: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
                 IV. Comentarios
               </h3>
@@ -1811,11 +1811,15 @@ function QuizLeaderboard() {
                       </div>
                     </div>
                     <div className="podium-pillar">
-                      <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', padding: '0 0.2rem' }}>
                         {podium2.nombre}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{podium2.area}</span>
-                      <span style={{ fontWeight: '800', color: 'var(--text-primary)', marginTop: '0.5rem' }}>{podium2.puntaje} pts</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', lineHeight: '1.2', marginTop: '0.2rem' }}>
+                        {podium2.area}
+                      </span>
+                      <span style={{ fontWeight: '800', color: 'var(--text-primary)', marginTop: 'auto', paddingTop: '0.4rem' }}>
+                        {podium2.puntaje} pts
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1850,11 +1854,15 @@ function QuizLeaderboard() {
                       </div>
                     </div>
                     <div className="podium-pillar">
-                      <span style={{ fontWeight: 'bold', fontSize: '1rem', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '1rem', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', padding: '0 0.2rem' }}>
                         {podium1.nombre}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{podium1.area}</span>
-                      <span style={{ fontWeight: '800', color: 'var(--warning)', marginTop: '0.5rem', fontSize: '1.1rem' }}>{podium1.puntaje} pts</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', lineHeight: '1.2', marginTop: '0.2rem' }}>
+                        {podium1.area}
+                      </span>
+                      <span style={{ fontWeight: '800', color: 'var(--warning)', marginTop: 'auto', paddingTop: '0.4rem', fontSize: '1.1rem' }}>
+                        {podium1.puntaje} pts
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1888,11 +1896,15 @@ function QuizLeaderboard() {
                       </div>
                     </div>
                     <div className="podium-pillar">
-                      <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', padding: '0 0.2rem' }}>
                         {podium3.nombre}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{podium3.area}</span>
-                      <span style={{ fontWeight: '800', color: 'var(--text-primary)', marginTop: '0.5rem' }}>{podium3.puntaje} pts</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', lineHeight: '1.2', marginTop: '0.2rem' }}>
+                        {podium3.area}
+                      </span>
+                      <span style={{ fontWeight: '800', color: 'var(--text-primary)', marginTop: 'auto', paddingTop: '0.4rem' }}>
+                        {podium3.puntaje} pts
+                      </span>
                     </div>
                   </div>
                 )}
@@ -4121,11 +4133,15 @@ function AdminQuizManage() {
                             </div>
                           </div>
                           <div className="podium-pillar">
-                            <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '110px' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', padding: '0 0.2rem' }}>
                               {podium2.nombre}
                             </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>{podium2.area}</span>
-                            <span style={{ fontWeight: '800', color: 'var(--text-primary)' }}>{podium2.puntaje} pts</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', lineHeight: '1.2', marginTop: '0.2rem' }}>
+                              {podium2.area}
+                            </span>
+                            <span style={{ fontWeight: '800', color: 'var(--text-primary)', marginTop: 'auto', paddingTop: '0.4rem' }}>
+                              {podium2.puntaje} pts
+                            </span>
                           </div>
                         </div>
                       )}
@@ -4160,11 +4176,15 @@ function AdminQuizManage() {
                             </div>
                           </div>
                           <div className="podium-pillar">
-                            <span style={{ fontWeight: 'bold', fontSize: '1rem', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '110px' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '1rem', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', padding: '0 0.2rem' }}>
                               {podium1.nombre}
                             </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>{podium1.area}</span>
-                            <span style={{ fontWeight: '800', color: 'var(--warning)', fontSize: '1.05rem' }}>{podium1.puntaje} pts</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', lineHeight: '1.2', marginTop: '0.2rem' }}>
+                              {podium1.area}
+                            </span>
+                            <span style={{ fontWeight: '800', color: 'var(--warning)', marginTop: 'auto', paddingTop: '0.4rem', fontSize: '1.05rem' }}>
+                              {podium1.puntaje} pts
+                            </span>
                           </div>
                         </div>
                       )}
@@ -4198,11 +4218,15 @@ function AdminQuizManage() {
                             </div>
                           </div>
                           <div className="podium-pillar">
-                            <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '110px' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '0.9rem', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', padding: '0 0.2rem' }}>
                               {podium3.nombre}
                             </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>{podium3.area}</span>
-                            <span style={{ fontWeight: '800', color: 'var(--text-primary)' }}>{podium3.puntaje} pts</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', width: '100%', wordBreak: 'break-word', display: 'block', lineHeight: '1.2', marginTop: '0.2rem' }}>
+                              {podium3.area}
+                            </span>
+                            <span style={{ fontWeight: '800', color: 'var(--text-primary)', marginTop: 'auto', paddingTop: '0.4rem' }}>
+                              {podium3.puntaje} pts
+                            </span>
                           </div>
                         </div>
                       )}
